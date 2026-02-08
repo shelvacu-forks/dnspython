@@ -16,11 +16,14 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from collections.abc import Sequence
+from typing import Any, IO
 
 import dns.edns
-import dns.exception
 import dns.immutable
 import dns.rdata
+import dns.rdataclass
+import dns.rdatatype
 
 # We don't implement from_text, and that's ok.
 # pylint: disable=abstract-method
@@ -31,8 +34,14 @@ class OPT(dns.rdata.Rdata):
     """OPT record"""
 
     __slots__ = ["options"]
+    options: tuple[dns.edns.Option, ...]
 
-    def __init__(self, rdclass, rdtype, options):
+    def __init__(
+            self,
+            rdclass: dns.rdataclass.RdataClass | int,
+            rdtype: dns.rdatatype.RdataType | int,
+            options: Sequence[dns.edns.Option],
+        ):
         """Initialize an OPT rdata.
 
         *rdclass*, an ``int`` is the rdataclass of the Rdata,
@@ -40,30 +49,42 @@ class OPT(dns.rdata.Rdata):
 
         *rdtype*, an ``int`` is the rdatatype of the Rdata.
 
-        *options*, a tuple of ``bytes``
+        *options*, a tuple of ``dns.edns.Option``
         """
 
         super().__init__(rdclass, rdtype)
 
-        def as_option(option):
+        def as_option(option: Any) -> dns.edns.Option:
             if not isinstance(option, dns.edns.Option):
                 raise ValueError("option is not a dns.edns.option")
             return option
 
         self.options = self._as_tuple(options, as_option)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(
+            self,
+            file: IO[bytes],
+            compress: Any = None,
+            origin: Any = None,
+            canonicalize: Any = False,
+        ) -> None:
         for opt in self.options:
             owire = opt.to_wire()
             file.write(struct.pack("!HH", opt.otype, len(owire)))
             file.write(owire)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin:Any=None, relativize:Any=True, **kw: Any) -> str:
         return " ".join(opt.to_text() for opt in self.options)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
-        options = []
+    def from_wire_parser(
+            cls,
+            rdclass: dns.rdataclass.RdataClass,
+            rdtype: dns.rdatatype.RdataType,
+            parser: dns.wire.Parser,
+            origin: Any = None,
+            ) -> "OPT":
+        options:list[dns.edns.Option] = []
         while parser.remaining() > 0:
             otype, olen = parser.get_struct("!HH")
             with parser.restrict_to(olen):
@@ -72,6 +93,6 @@ class OPT(dns.rdata.Rdata):
         return cls(rdclass, rdtype, options)
 
     @property
-    def payload(self):
+    def payload(self) -> dns.rdataclass.RdataClass:
         "payload size"
         return self.rdclass

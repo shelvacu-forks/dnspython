@@ -21,7 +21,7 @@ import binascii
 import math
 import socket
 import struct
-from typing import Any
+from typing import Any, overload, IO
 
 import dns.enum
 import dns.inet
@@ -75,7 +75,11 @@ class Option:
         """
         self.otype = OptionType.make(otype)
 
-    def to_wire(self, file: Any | None = None) -> bytes | None:
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
+    def to_wire(self, file: IO[bytes] | None = None) -> bytes | None:
         """Convert an option to wire format.
 
         Returns a ``bytes`` or ``None``.
@@ -170,6 +174,10 @@ class GenericOption(Option):  # lgtm[py/missing-equals]
         super().__init__(otype)
         self.data = dns.rdata.Rdata._as_bytes(data, True)
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any | None = None) -> bytes | None:
         if file:
             file.write(self.data)
@@ -298,6 +306,10 @@ class ECSOption(Option):  # lgtm[py/missing-equals]
             )
         return ECSOption(address, srclen, scope)
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any | None = None) -> bytes | None:
         value = (
             struct.pack("!HBB", self.family, self.srclen, self.scopelen) + self.addrdata
@@ -394,6 +406,10 @@ class EDEOption(Option):  # lgtm[py/missing-equals]
             output += f": {self.text}"
         return output
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any | None = None) -> bytes | None:
         value = struct.pack("!H", self.code)
         if self.text is not None:
@@ -427,6 +443,10 @@ class NSIDOption(Option):
         super().__init__(OptionType.NSID)
         self.nsid = nsid
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any = None) -> bytes | None:
         if file:
             file.write(self.nsid)
@@ -459,6 +479,10 @@ class CookieOption(Option):
         if len(server) != 0 and (len(server) < 8 or len(server) > 32):
             raise ValueError("server cookie must be empty or between 8 and 32 bytes")
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any = None) -> bytes | None:
         if file:
             file.write(self.client)
@@ -489,6 +513,10 @@ class ReportChannelOption(Option):
         super().__init__(OptionType.REPORTCHANNEL)
         self.agent_domain = agent_domain
 
+    @overload
+    def to_wire(self) -> bytes: ...
+    @overload
+    def to_wire(self, file: IO[bytes]) -> None: ...
     def to_wire(self, file: Any = None) -> bytes | None:
         return self.agent_domain.to_wire(file)
 

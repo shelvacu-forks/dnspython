@@ -36,7 +36,9 @@ import dns.tsig
 class TransferError(dns.exception.DNSException):
     """A zone transfer response got a non-zero rcode."""
 
-    def __init__(self, rcode):
+    rcode: dns.rcode.Rcode
+
+    def __init__(self, rcode: dns.rcode.Rcode) -> None:
         message = f"Zone transfer error: {dns.rcode.to_text(rcode)}"
         super().__init__(message)
         self.rcode = rcode
@@ -258,7 +260,7 @@ class Inbound:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type:Any, exc_val:Any, exc_tb:Any):
         if self.txn:
             self.txn.rollback()
         return False

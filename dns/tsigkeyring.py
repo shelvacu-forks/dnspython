@@ -18,40 +18,64 @@
 """A place to store TSIG keys."""
 
 import base64
-from typing import Any
+from collections.abc import Callable
+import typing
 
 import dns.name
 import dns.tsig
+import dns.message
 
 
-def from_text(textring: dict[str, Any]) -> dict[dns.name.Name, Any]:
+type Textring = dict[str, str | tuple[str | dns.name.Name, bytes | str | dns.tsig.SecurityContext]]
+type Keyring = dict[dns.name.Name, dns.tsig.Key | bytes]
+
+
+type KeyringLike = dns.tsigkeyring.Keyring | dns.tsig.Key | Callable[[dns.message.Message, dns.name.Name], dns.tsig.Key] | None | typing.Literal[True]
+
+def get_key(keyring: KeyringLike, keyname: dns.name.Name, message: dns.message.Message, default_algorithm: dns.tsig.AlgorithmHMAC) -> dns.tsig.Key | None:
+    if keyring is None or keyring is True:
+        return None
+    if callable(keyring):
+        return keyring(message, keyname)
+    if isinstance(keyring, dict):
+        v = keyring.get(keyname)
+        if isinstance(v, bytes):
+            return dns.tsig.KeyHMAC(keyname, v, default_algorithm)
+        else:
+            return v
+    return keyring
+    
+
+def from_text(textring: Textring) -> Keyring:
     """Convert a dictionary containing (textual DNS name, base64 secret)
     pairs into a binary keyring which has (dns.name.Name, bytes) pairs, or
     a dictionary containing (textual DNS name, (algorithm, base64 secret))
     pairs into a binary keyring which has (dns.name.Name, dns.tsig.Key) pairs.
     @rtype: dict"""
 
-    keyring: dict[dns.name.Name, Any] = {}
+    keyring: Keyring = {}
     for name, value in textring.items():
         kname = dns.name.from_text(name)
         if isinstance(value, str):
-            keyring[kname] = dns.tsig.Key(kname, value).secret
+            key = dns.tsig.KeyHMAC(kname, value)
+            assert isinstance(key.secret, bytes)
+            keyring[kname] = key.secret
         else:
             algorithm, secret = value
-            keyring[kname] = dns.tsig.Key(kname, secret, algorithm)
+            keyring[kname] = dns.tsig.make_key(kname, secret, algorithm)
     return keyring
 
 
-def to_text(keyring: dict[dns.name.Name, Any]) -> dict[str, Any]:
+def to_text(keyring: Keyring) -> Textring:
     """Convert a dictionary containing (dns.name.Name, dns.tsig.Key) pairs
     into a text keyring which has (textual DNS name, (textual algorithm,
     base64 secret)) pairs, or a dictionary containing (dns.name.Name, bytes)
     pairs into a text keyring which has (textual DNS name, base64 secret) pairs.
     @rtype: dict"""
 
-    textring = {}
+    textring:Textring = {}
 
-    def b64encode(secret):
+    def b64encode(secret: bytes) -> str:
         return base64.encodebytes(secret).decode().rstrip()
 
     for name, key in keyring.items():
@@ -64,5 +88,5 @@ def to_text(keyring: dict[dns.name.Name, Any]) -> dict[str, Any]:
             else:
                 text_secret = str(key.secret)
 
-            textring[tname] = (key.algorithm.to_text(), text_secret)
+            textring[tname] = (key.algorithm.value.to_text(), text_secret)
     return textring

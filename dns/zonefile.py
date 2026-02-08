@@ -20,7 +20,7 @@
 import re
 import sys
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any, cast, Never
 
 import dns.exception
 import dns.grange
@@ -29,6 +29,7 @@ import dns.node
 import dns.rdata
 import dns.rdataclass
 import dns.rdatatype
+import dns.rdataset
 import dns.rdtypes.ANY.SOA
 import dns.rrset
 import dns.tokenizer
@@ -44,7 +45,7 @@ class CNAMEAndOtherData(dns.exception.DNSException):
     """A node has a CNAME and other data"""
 
 
-def _check_cname_and_other_data(txn, name, rdataset):
+def _check_cname_and_other_data(txn: dns.transaction.Transaction, name: dns.name.Name, rdataset: dns.rdataset.Rdataset):
     rdataset_kind = dns.node.NodeKind.classify_rdataset(rdataset)
     node = txn.get_node(name)
     if node is None:
@@ -79,7 +80,7 @@ SavedStateType = tuple[
 ]  # default_ttl_known
 
 
-def _upper_dollarize(s):
+def _upper_dollarize(s: str) -> str:
     s = s.upper()
     if not s.startswith("$"):
         s = "$" + s
@@ -88,6 +89,29 @@ def _upper_dollarize(s):
 
 class Reader:
     """Read a DNS zone file into a transaction."""
+
+    tok: dns.tokenizer.Tokenizer
+    txn: dns.transaction.Transaction
+    allow_include: bool
+    allow_directives: bool | Iterable[str]
+    force_name: dns.name.Name | None
+    force_ttl: int | None
+    force_rdclass: dns.rdataclass.RdataClass | None
+    force_rdtype: dns.rdatatype.RdataType | None
+    default_ttl: int
+
+    zone_origin: dns.name.Name | None
+    relativize: bool
+    current_origin: dns.name.Name | None
+    last_ttl: int
+    last_ttl_known: bool
+    default_ttl: int
+    default_ttl_known: bool
+    last_name: dns.name.Name | None
+    zone_rdclass: dns.rdataclass.RdataClass
+    saved_state: list[SavedStateType]
+    current_file: Any | None
+    allowed_directives: set[str]
 
     def __init__(
         self,
@@ -139,13 +163,13 @@ class Reader:
         self.force_rdtype = force_rdtype
         self.txn.check_put_rdataset(_check_cname_and_other_data)
 
-    def _eat_line(self):
-        while 1:
+    def _eat_line(self) -> None:
+        while True:
             token = self.tok.get()
             if token.is_eol_or_eof():
                 break
 
-    def _get_identifier(self):
+    def _get_identifier(self) -> dns.tokenizer.Token:
         token = self.tok.get()
         if not token.is_identifier():
             raise dns.exception.SyntaxError
@@ -318,7 +342,7 @@ class Reader:
 
         return mod, sign, ioffset, iwidth, base
 
-    def _generate_line(self):
+    def _generate_line(self) -> None:
         # range lhs [ttl] [class] type rhs [ comment ]
         """Process one line containing the GENERATE statement from a DNS
         zone file."""
@@ -509,7 +533,7 @@ class Reader:
                         self.tok.get_eol()
                         if self.zone_origin is None:
                             self.zone_origin = self.current_origin
-                        self.txn._set_origin(self.current_origin)
+                        self.txn._set_origin(self.current_origin) # type: ignore[reportPrivateUsage]
                     elif c == "$INCLUDE":
                         token = self.tok.get()
                         filename = token.value
@@ -550,24 +574,23 @@ class Reader:
                 self._rr_line()
         except dns.exception.SyntaxError as detail:
             filename, line_number = self.tok.where()
-            if detail is None:
-                detail = "syntax error"
             ex = dns.exception.SyntaxError(f"{filename}:{line_number}: {detail}")
             tb = sys.exc_info()[2]
             raise ex.with_traceback(tb) from None
 
 
 class RRsetsReaderTransaction(dns.transaction.Transaction):
-    def __init__(self, manager, replacement, read_only):
+    rdatasets:dict[tuple[dns.name.Name, dns.rdatatype.RdataType, dns.rdatatype.RdataType], dns.rdataset.Rdataset]
+    def __init__(self, manager: dns.transaction.TransactionManager, replacement: bool, read_only: bool):
         assert not read_only
         super().__init__(manager, replacement, read_only)
         self.rdatasets = {}
 
-    def _get_rdataset(self, name, rdtype, covers):
+    def _get_rdataset(self, name: dns.name.Name, rdtype: dns.rdatatype.RdataType, covers: dns.rdatatype.RdataType) -> dns.rdataset.Rdataset | None:
         return self.rdatasets.get((name, rdtype, covers))
 
-    def _get_node(self, name):
-        rdatasets = []
+    def _get_node(self, name: dns.name.Name) -> dns.node.Node | None:
+        rdatasets:list[dns.rdataset.Rdataset] = []
         for (rdataset_name, _, _), rdataset in self.rdatasets.items():
             if name == rdataset_name:
                 rdatasets.append(rdataset)
@@ -577,12 +600,12 @@ class RRsetsReaderTransaction(dns.transaction.Transaction):
         node.rdatasets = rdatasets
         return node
 
-    def _put_rdataset(self, name, rdataset):
+    def _put_rdataset(self, name: dns.name.Name, rdataset: dns.rdataset.Rdataset) -> None:
         self.rdatasets[(name, rdataset.rdtype, rdataset.covers)] = rdataset
 
-    def _delete_name(self, name):
+    def _delete_name(self, name: dns.name.Name):
         # First remove any changes involving the name
-        remove = []
+        remove:list[tuple[dns.name.Name, dns.rdatatype.RdataType, dns.rdatatype.RdataType]] = []
         for key in self.rdatasets:
             if key[0] == name:
                 remove.append(key)
@@ -590,24 +613,23 @@ class RRsetsReaderTransaction(dns.transaction.Transaction):
             for key in remove:
                 del self.rdatasets[key]
 
-    def _delete_rdataset(self, name, rdtype, covers):
-        try:
-            del self.rdatasets[(name, rdtype, covers)]
-        except KeyError:
-            pass
+    def _delete_rdataset(self, name: dns.name.Name, rdtype: dns.rdatatype.RdataType, covers: dns.rdatatype.RdataType) -> None:
+        key = (name, rdtype, covers)
+        if key in self.rdatasets:
+            del self.rdatasets[key]
 
-    def _name_exists(self, name):
+    def _name_exists(self, name: dns.name.Name) -> bool:
         for n, _, _ in self.rdatasets:
             if n == name:
                 return True
         return False
 
-    def _changed(self):
+    def _changed(self) -> bool:
         return len(self.rdatasets) > 0
 
-    def _end_transaction(self, commit):
+    def _end_transaction(self, commit:bool) -> None:
         if commit and self._changed():
-            rrsets = []
+            rrsets:list[dns.rrset.RRset] = []
             for (name, _, _), rdataset in self.rdatasets.items():
                 rrset = dns.rrset.RRset(
                     name, rdataset.rdclass, rdataset.rdtype, rdataset.covers
@@ -617,13 +639,13 @@ class RRsetsReaderTransaction(dns.transaction.Transaction):
             manager = cast(RRSetsReaderManager, self.manager)
             manager.set_rrsets(rrsets)
 
-    def _set_origin(self, origin):
+    def _set_origin(self, origin: dns.name.Name | None) -> None:
         pass
 
-    def _iterate_rdatasets(self):
+    def _iterate_rdatasets(self) -> Never:
         raise NotImplementedError  # pragma: no cover
 
-    def _iterate_names(self):
+    def _iterate_names(self) -> Never:
         raise NotImplementedError  # pragma: no cover
 
 
@@ -639,17 +661,17 @@ class RRSetsReaderManager(dns.transaction.TransactionManager):
         self.rdclass = rdclass
         self.rrsets: list[dns.rrset.RRset] = []
 
-    def reader(self):  # pragma: no cover
+    def reader(self) -> Never:  # pragma: no cover
         raise NotImplementedError
 
-    def writer(self, replacement=False):
+    def writer(self, replacement:bool=False) -> RRsetsReaderTransaction:
         assert replacement is True
         return RRsetsReaderTransaction(self, True, False)
 
-    def get_class(self):
+    def get_class(self) -> dns.rdataclass.RdataClass:
         return self.rdclass
 
-    def origin_information(self):
+    def origin_information(self) -> tuple[dns.name.Name | None, bool, dns.name.Name | None]:
         if self.relativize:
             effective = dns.name.empty
         else:

@@ -19,7 +19,8 @@
 
 import enum
 import io
-from typing import Any
+from collections.abc import Container, Iterator
+from typing import Any, Never
 
 import dns.immutable
 import dns.name
@@ -40,7 +41,7 @@ _neutral_types = {
 }
 
 
-def _matches_type_or_its_signature(rdtypes, rdtype, covers):
+def _matches_type_or_its_signature(rdtypes:Container[dns.rdatatype.RdataType], rdtype:dns.rdatatype.RdataType, covers:dns.rdatatype.RdataType):
     return rdtype in rdtypes or (rdtype == dns.rdatatype.RRSIG and covers in rdtypes)
 
 
@@ -85,12 +86,13 @@ class Node:
     """
 
     __slots__ = ["rdatasets"]
+    rdatasets:list[dns.rdataset.Rdataset]
 
     def __init__(self):
         # the set of rdatasets, represented as a list.
         self.rdatasets = []
 
-    def to_text(self, name: dns.name.Name, **kw: dict[str, Any]) -> str:
+    def to_text(self, name: dns.name.Name, **kw: Any) -> str:
         """Convert a node to text format.
 
         Each rdataset at the node is printed.  Any keyword arguments
@@ -106,14 +108,14 @@ class Node:
         s = io.StringIO()
         for rds in self.rdatasets:
             if len(rds) > 0:
-                s.write(rds.to_text(name, **kw))  # pyright: ignore[arg-type]
+                s.write(rds.to_text(name, **kw))
                 s.write("\n")
         return s.getvalue()[:-1]
 
     def __repr__(self):
         return "<DNS node " + str(id(self)) + ">"  # pragma: no cover
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         #
         # This is inefficient.  Good thing we don't need to do it much.
         #
@@ -125,16 +127,16 @@ class Node:
                 return False
         return True
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)  # pragma: no cover
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.rdatasets)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[dns.rdataset.Rdataset]:
         return iter(self.rdatasets)
 
-    def _append_rdataset(self, rdataset):
+    def _append_rdataset(self, rdataset: dns.rdataset.Rdataset):
         """Append rdataset to the node with special handling for CNAME and
         other data conditions.
 
@@ -315,11 +317,13 @@ class Node:
 
 @dns.immutable.immutable
 class ImmutableNode(Node):
-    def __init__(self, node):
+    rdatasets:tuple[dns.rdataset.ImmutableRdataset, ...]
+    def __init__(self, node: Node):
         super().__init__()
-        self.rdatasets = tuple(
-            [dns.rdataset.ImmutableRdataset(rds) for rds in node.rdatasets]
+        rdatasets = tuple(
+            dns.rdataset.ImmutableRdataset(rds) for rds in node.rdatasets
         )
+        self.rdatasets = rdatasets # type: ignore
 
     def find_rdataset(
         self,
@@ -348,10 +352,10 @@ class ImmutableNode(Node):
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
         covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
-    ) -> None:
+    ) -> Never:
         raise TypeError("immutable")
 
-    def replace_rdataset(self, replacement: dns.rdataset.Rdataset) -> None:
+    def replace_rdataset(self, replacement: dns.rdataset.Rdataset) -> Never:
         raise TypeError("immutable")
 
     def is_immutable(self) -> bool:

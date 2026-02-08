@@ -618,7 +618,7 @@ class Transaction:
         """
         raise NotImplementedError  # pragma: no cover
 
-    def _set_origin(self, origin):
+    def _set_origin(self, origin: dns.name.Name | None):
         """Set the origin.
 
         This method is called when reading a possibly relativized

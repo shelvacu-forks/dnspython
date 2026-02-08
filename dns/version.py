@@ -28,7 +28,7 @@ RELEASELEVEL = 0x00
 #: SERIAL
 SERIAL = 0
 
-if RELEASELEVEL == 0x0F:  # pragma: no cover  lgtm[py/unreachable-statement]
+if RELEASELEVEL == 0x0F:  # pragma: no cover  lgtm[py/unreachable-statement] # type: ignore[reportUnnecessaryComparison]
     #: version
     version = f"{MAJOR}.{MINOR}.{MICRO}"  # lgtm[py/unreachable-statement]
 elif RELEASELEVEL == 0x00:  # pragma: no cover  lgtm[py/unreachable-statement]

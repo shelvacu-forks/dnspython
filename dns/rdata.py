@@ -24,8 +24,10 @@ import io
 import ipaddress
 import itertools
 import random
+from collections.abc import Iterable, Callable
 from importlib import import_module
-from typing import Any
+from typing import Any, Literal, cast, IO, Self
+from typing_extensions import Buffer
 
 import dns.exception
 import dns.immutable
@@ -37,6 +39,7 @@ import dns.rdatatype
 import dns.tokenizer
 import dns.ttl
 import dns.wire
+import dns.wirebase
 
 _chunksize = 32
 
@@ -57,7 +60,7 @@ class NoRelativeRdataOrdering(dns.exception.DNSException):
     """
 
 
-def _wordbreak(data, chunksize=_chunksize, separator=b" "):
+def _wordbreak(data:bytes, chunksize:int=_chunksize, separator:bytes=b" ") -> str:
     """Break a binary string into chunks of chunksize characters separated by
     a space.
     """
@@ -72,7 +75,7 @@ def _wordbreak(data, chunksize=_chunksize, separator=b" "):
 # pylint: disable=unused-argument
 
 
-def _hexify(data, chunksize=_chunksize, separator=b" ", **kw):
+def _hexify(data:Buffer, chunksize:int=_chunksize, separator:bytes=b" "):
     """Convert a binary string into its hex encoding, broken up into chunks
     of chunksize characters separated by a separator.
     """
@@ -80,7 +83,7 @@ def _hexify(data, chunksize=_chunksize, separator=b" ", **kw):
     return _wordbreak(binascii.hexlify(data), chunksize, separator)
 
 
-def _base64ify(data, chunksize=_chunksize, separator=b" ", **kw):
+def _base64ify(data:Buffer, chunksize:int=_chunksize, separator:bytes=b" "): # type: ignore[reportUnusedFunction]
     """Convert a binary string into its base64 encoding, broken up into chunks
     of chunksize characters separated by a separator.
     """
@@ -93,7 +96,7 @@ def _base64ify(data, chunksize=_chunksize, separator=b" ", **kw):
 __escaped = b'"\\'
 
 
-def _escapify(qstring):
+def _escapify(qstring: str|bytes|bytearray) -> str: # type: ignore[reportUnusedFunction]
     """Escape the characters in a quoted string which need it."""
 
     if isinstance(qstring, str):
@@ -112,7 +115,7 @@ def _escapify(qstring):
     return text
 
 
-def _truncate_bitmap(what):
+def _truncate_bitmap(what: bytes) -> bytes: # type: ignore[reportUnusedFunction]
     """Determine the index of greatest byte that isn't all zeros, and
     return the bitmap that contains all the bytes less than that index.
     """
@@ -132,11 +135,14 @@ class Rdata:
     """Base class for all DNS rdata types."""
 
     __slots__ = ["rdclass", "rdtype", "rdcomment"]
+    rdclass: dns.rdataclass.RdataClass
+    rdtype: dns.rdatatype.RdataType
+    rdcomment: str|None
 
     def __init__(
         self,
-        rdclass: dns.rdataclass.RdataClass,
-        rdtype: dns.rdatatype.RdataType,
+        rdclass: dns.rdataclass.RdataClass|int,
+        rdtype: dns.rdatatype.RdataType|int,
     ) -> None:
         """Initialize an rdata.
 
@@ -154,7 +160,7 @@ class Rdata:
             getattr(cls, "__slots__", []) for cls in self.__class__.__mro__
         )
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         # We used to try to do a tuple of all slots here, but it
         # doesn't work as self._all_slots isn't available at
         # __setstate__() time.  Before that we tried to store a tuple
@@ -163,12 +169,12 @@ class Rdata:
         # outright, but ended up with partially broken objects, e.g.
         # if you unpickled an A RR it wouldn't have rdclass and rdtype
         # attributes, and would compare badly.
-        state = {}
+        state:dict[str, Any] = {}
         for slot in self._get_all_slots():
             state[slot] = getattr(self, slot)
         return state
 
-    def __setstate__(self, state):
+    def __setstate__(self, state:dict[str, Any]):
         for slot, val in state.items():
             object.__setattr__(self, slot, val)
         if not hasattr(self, "rdcomment"):
@@ -202,9 +208,11 @@ class Rdata:
 
     def to_text(
         self,
+        *,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
-        **kw: dict[str, Any],
+        chunksize: int = _chunksize,
+        separator: bytes = b" ",
     ) -> str:
         """Convert an rdata to text format.
 
@@ -215,7 +223,7 @@ class Rdata:
 
     def _to_wire(
         self,
-        file: Any,
+        file: IO[bytes],
         compress: dns.name.CompressType | None = None,
         origin: dns.name.Name | None = None,
         canonicalize: bool = False,
@@ -224,7 +232,7 @@ class Rdata:
 
     def to_wire(
         self,
-        file: Any | None = None,
+        file: IO[bytes] | None = None,
         compress: dns.name.CompressType | None = None,
         origin: dns.name.Name | None = None,
         canonicalize: bool = False,
@@ -234,7 +242,7 @@ class Rdata:
         Returns a ``bytes`` if no output file was specified, or ``None`` otherwise.
         """
 
-        if file:
+        if file is not None:
             # We call _to_wire() and then return None explicitly instead of
             # of just returning the None from _to_wire() as mypy's func-returns-value
             # unhelpfully errors out with "error: "_to_wire" of "Rdata" does not return
@@ -285,7 +293,7 @@ class Rdata:
     def __str__(self):
         return self.to_text()
 
-    def _cmp(self, other):
+    def _cmp(self, other: "Rdata") -> Literal[-1, 0, 1]:
         """Compare an rdata with another rdata of the same rdtype and
         rdclass.
 
@@ -335,7 +343,7 @@ class Rdata:
         else:
             return -1
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Rdata):
             return False
         if self.rdclass != other.rdclass or self.rdtype != other.rdtype:
@@ -356,14 +364,14 @@ class Rdata:
             return False
         return our == their
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if not isinstance(other, Rdata):
             return True
         if self.rdclass != other.rdclass or self.rdtype != other.rdtype:
             return True
         return not self.__eq__(other)
 
-    def __lt__(self, other):
+    def __lt__(self, other: "Rdata") -> bool:
         if (
             not isinstance(other, Rdata)
             or self.rdclass != other.rdclass
@@ -372,7 +380,7 @@ class Rdata:
             return NotImplemented
         return self._cmp(other) < 0
 
-    def __le__(self, other):
+    def __le__(self, other: "Rdata") -> bool:
         if (
             not isinstance(other, Rdata)
             or self.rdclass != other.rdclass
@@ -381,7 +389,7 @@ class Rdata:
             return NotImplemented
         return self._cmp(other) <= 0
 
-    def __ge__(self, other):
+    def __ge__(self, other: "Rdata") -> bool:
         if (
             not isinstance(other, Rdata)
             or self.rdclass != other.rdclass
@@ -390,7 +398,7 @@ class Rdata:
             return NotImplemented
         return self._cmp(other) >= 0
 
-    def __gt__(self, other):
+    def __gt__(self, other: "Rdata") -> bool:
         if (
             not isinstance(other, Rdata)
             or self.rdclass != other.rdclass
@@ -399,7 +407,7 @@ class Rdata:
             return NotImplemented
         return self._cmp(other) > 0
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.to_digestable(dns.name.root))
 
     @classmethod
@@ -424,7 +432,7 @@ class Rdata:
     ) -> "Rdata":
         raise NotImplementedError  # pragma: no cover
 
-    def replace(self, **kwargs: Any) -> "Rdata":
+    def replace(self, **kwargs: Any) -> Self:
         """
         Create a new Rdata instance based on the instance replace was
         invoked on. It is possible to pass different parameters to
@@ -470,11 +478,11 @@ class Rdata:
     # they don't touch object state and may be useful to others.
 
     @classmethod
-    def _as_rdataclass(cls, value):
+    def _as_rdataclass(cls, value:int|dns.rdataclass.RdataClass) -> dns.rdataclass.RdataClass:
         return dns.rdataclass.RdataClass.make(value)
 
     @classmethod
-    def _as_rdatatype(cls, value):
+    def _as_rdatatype(cls, value:int|dns.rdatatype.RdataType) -> dns.rdatatype.RdataType:
         return dns.rdatatype.RdataType.make(value)
 
     @classmethod
@@ -500,7 +508,7 @@ class Rdata:
         return bvalue
 
     @classmethod
-    def _as_name(cls, value):
+    def _as_name(cls, value: str|dns.name.Name) -> dns.name.Name:
         # Note that proper name conversion (e.g. with origin and IDNA
         # awareness) is expected to be done via from_text.  This is just
         # a simple thing for people invoking the constructor directly.
@@ -511,7 +519,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_uint8(cls, value):
+    def _as_uint8(cls, value:int) -> int:
         if not isinstance(value, int):
             raise ValueError("not an integer")
         if value < 0 or value > 255:
@@ -519,7 +527,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_uint16(cls, value):
+    def _as_uint16(cls, value:int) -> int:
         if not isinstance(value, int):
             raise ValueError("not an integer")
         if value < 0 or value > 65535:
@@ -527,7 +535,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_uint32(cls, value):
+    def _as_uint32(cls, value:int) -> int:
         if not isinstance(value, int):
             raise ValueError("not an integer")
         if value < 0 or value > 4294967295:
@@ -535,7 +543,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_uint48(cls, value):
+    def _as_uint48(cls, value:int) -> int:
         if not isinstance(value, int):
             raise ValueError("not an integer")
         if value < 0 or value > 281474976710655:
@@ -543,7 +551,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_int(cls, value, low=None, high=None):
+    def _as_int(cls, value:int, low:int|None=None, high:int|None=None) -> int:
         if not isinstance(value, int):
             raise ValueError("not an integer")
         if low is not None and value < low:
@@ -553,7 +561,7 @@ class Rdata:
         return value
 
     @classmethod
-    def _as_ipv4_address(cls, value):
+    def _as_ipv4_address(cls, value: str|bytes|ipaddress.IPv4Address) -> str:
         if isinstance(value, str):
             return dns.ipv4.canonicalize(value)
         elif isinstance(value, bytes):
@@ -564,7 +572,7 @@ class Rdata:
             raise ValueError("not an IPv4 address")
 
     @classmethod
-    def _as_ipv6_address(cls, value):
+    def _as_ipv6_address(cls, value:str|bytes|ipaddress.IPv6Address) -> str:
         if isinstance(value, str):
             return dns.ipv6.canonicalize(value)
         elif isinstance(value, bytes):
@@ -575,14 +583,14 @@ class Rdata:
             raise ValueError("not an IPv6 address")
 
     @classmethod
-    def _as_bool(cls, value):
+    def _as_bool(cls, value:bool) -> bool:
         if isinstance(value, bool):
             return value
         else:
             raise ValueError("not a boolean")
 
     @classmethod
-    def _as_ttl(cls, value):
+    def _as_ttl(cls, value:int|str) -> int:
         if isinstance(value, int):
             return cls._as_int(value, 0, dns.ttl.MAX_TTL)
         elif isinstance(value, str):
@@ -591,20 +599,22 @@ class Rdata:
             raise ValueError("not a TTL")
 
     @classmethod
-    def _as_tuple(cls, value, as_value):
+    def _as_tuple[T, V](cls, value: T|Iterable[T], as_value: Callable[[T], V]) -> tuple[V, ...]:
         try:
+            value_single = cast(T, value)
             # For user convenience, if value is a singleton of the list
             # element type, wrap it in a tuple.
-            return (as_value(value),)
-        except Exception:
+            return (as_value(value_single),)
+        except ValueError:
+            value_multiple = cast(Iterable[T], value)
             # Otherwise, check each element of the iterable *value*
             # against *as_value*.
-            return tuple(as_value(v) for v in value)
+            return tuple(as_value(v) for v in value_multiple)
 
     # Processing order
 
     @classmethod
-    def _processing_order(cls, iterable):
+    def _processing_order[T](cls, iterable: Iterable[T]) -> list[T]:
         items = list(iterable)
         random.shuffle(items)
         return items
@@ -619,6 +629,7 @@ class GenericRdata(Rdata):
     """
 
     __slots__ = ["data"]
+    data: bytes
 
     def __init__(
         self,
@@ -633,13 +644,20 @@ class GenericRdata(Rdata):
         self,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
-        **kw: dict[str, Any],
+        chunksize:int=_chunksize,
+        separator:bytes=b" "
     ) -> str:
-        return rf"\# {len(self.data)} " + _hexify(self.data, **kw)  # pyright: ignore
+        return rf"\# {len(self.data)} " + _hexify(self.data, chunksize=chunksize, separator=separator)
 
     @classmethod
     def from_text(
-        cls, rdclass, rdtype, tok, origin=None, relativize=True, relativize_to=None
+        cls,
+        rdclass:dns.rdataclass.RdataClass,
+        rdtype:dns.rdatatype.RdataType,
+        tok:dns.tokenizer.Tokenizer,
+        origin:Any=None,
+        relativize:Any=True,
+        relativize_to:Any=None,
     ):
         token = tok.get()
         if not token.is_identifier() or token.value != r"\#":
@@ -651,14 +669,26 @@ class GenericRdata(Rdata):
             raise dns.exception.SyntaxError("generic rdata hex data has wrong length")
         return cls(rdclass, rdtype, data)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(
+            self,
+            file:IO[bytes],
+            compress:Any=None,
+            origin:Any=None,
+            canonicalize:Any=False
+        ):
         file.write(self.data)
 
     def to_generic(self, origin: dns.name.Name | None = None) -> "GenericRdata":
         return self
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(
+            cls,
+            rdclass: dns.rdataclass.RdataClass,
+            rdtype: dns.rdatatype.RdataType,
+            parser: dns.wirebase.Parser,
+            origin: Any=None
+        ):
         return cls(rdclass, rdtype, parser.get_remaining())
 
 
@@ -669,7 +699,7 @@ _module_prefix = "dns.rdtypes"
 _dynamic_load_allowed = True
 
 
-def get_rdata_class(rdclass, rdtype, use_generic=True):
+def get_rdata_class(rdclass:dns.rdataclass.RdataClass, rdtype:dns.rdatatype.RdataType, use_generic:bool=True) -> Any:
     cls = _rdata_classes.get((rdclass, rdtype))
     if not cls:
         cls = _rdata_classes.get((dns.rdataclass.ANY, rdtype))
@@ -697,7 +727,7 @@ def get_rdata_class(rdclass, rdtype, use_generic=True):
     return cls
 
 
-def load_all_types(disable_dynamic_load=True):
+def load_all_types(disable_dynamic_load:bool=True) -> None:
     """Load all rdata types for which dnspython has a non-generic implementation.
 
     Normally dnspython loads DNS rdatatype implementations on demand, but in some
@@ -930,6 +960,6 @@ def register_type(
     if isinstance(implementation, type) and issubclass(implementation, Rdata):
         impclass = implementation
     else:
-        impclass = getattr(implementation, rdtype_text.replace("-", "_"))
+        impclass = getattr(implementation, rdtype_text.replace("-", "_")) # type: ignore[reportUnknownArgumentType]
     _rdata_classes[(rdclass, rdtype)] = impclass
     dns.rdatatype.register_type(rdtype, rdtype_text, is_singleton)

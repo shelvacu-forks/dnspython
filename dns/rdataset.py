@@ -21,7 +21,7 @@ import io
 import random
 import struct
 from collections.abc import Collection
-from typing import Any, cast
+from typing import Any, cast, Never, Self, IO
 
 import dns.exception
 import dns.immutable
@@ -46,10 +46,17 @@ class IncompatibleTypes(dns.exception.DNSException):
     """An attempt was made to add DNS RR data of an incompatible type."""
 
 
-class Rdataset(dns.set.Set):
+_Super = dns.set.Set[dns.rdata.Rdata]
+
+
+class Rdataset(_Super):
     """A DNS rdataset."""
 
     __slots__ = ["rdclass", "rdtype", "covers", "ttl"]
+    rdclass: dns.rdataclass.RdataClass
+    rdtype: dns.rdatatype.RdataType
+    covers: dns.rdatatype.RdataType
+    ttl: int
 
     def __init__(
         self,
@@ -136,26 +143,32 @@ class Rdataset(dns.set.Set):
             self.clear()
         super().add(rd)
 
-    def union_update(self, other):
+    def union_update(self, other: _Super) -> None:
+        if not isinstance(other, Rdataset):
+            raise NotImplemented
         self.update_ttl(other.ttl)
         super().union_update(other)
 
-    def intersection_update(self, other):
+    def intersection_update(self, other: _Super) -> None:
+        if not isinstance(other, Rdataset):
+            raise NotImplemented
         self.update_ttl(other.ttl)
         super().intersection_update(other)
 
-    def update(self, other):
+    def update(self, other: _Super) -> None:
         """Add all rdatas in other to self.
 
         *other*, a ``dns.rdataset.Rdataset``, the rdataset from which
         to update.
         """
 
+        if not isinstance(other, Rdataset):
+            raise NotImplemented
         self.update_ttl(other.ttl)
         super().update(other)
 
-    def _rdata_repr(self):
-        def maybe_truncate(s):
+    def _rdata_repr(self) -> str:
+        def maybe_truncate(s:str) -> str:
             if len(s) > 100:
                 return s[:100] + "..."
             return s
@@ -181,7 +194,7 @@ class Rdataset(dns.set.Set):
     def __str__(self):
         return self.to_text()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Rdataset):
             return False
         if (
@@ -192,17 +205,19 @@ class Rdataset(dns.set.Set):
             return False
         return super().__eq__(other)
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         return not self.__eq__(other)
 
     def to_text(
         self,
+        *,
         name: dns.name.Name | None = None,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
         override_rdclass: dns.rdataclass.RdataClass | None = None,
         want_comments: bool = False,
-        **kw: dict[str, Any],
+        chunksize: int = dns.rdata._chunksize,
+        separator: bytes = b" ",
     ) -> str:
         """Convert the rdataset into DNS zone file format.
 
@@ -261,7 +276,7 @@ class Rdataset(dns.set.Set):
                     f"{ntext}{pad}{self.ttl} "
                     f"{dns.rdataclass.to_text(rdclass)} "
                     f"{dns.rdatatype.to_text(self.rdtype)} "
-                    f"{rd.to_text(origin=origin, relativize=relativize, **kw)}"
+                    f"{rd.to_text(origin=origin, relativize=relativize, chunksize=chunksize, separator=separator)}"
                     f"{extra}\n"
                 )
         #
@@ -271,8 +286,9 @@ class Rdataset(dns.set.Set):
 
     def to_wire(
         self,
+        *,
         name: dns.name.Name,
-        file: Any,
+        file: IO[bytes],
         compress: dns.name.CompressType | None = None,
         origin: dns.name.Name | None = None,
         override_rdclass: dns.rdataclass.RdataClass | None = None,
@@ -365,61 +381,61 @@ class ImmutableRdataset(Rdataset):  # lgtm[py/missing-equals]
         super().__init__(
             rdataset.rdclass, rdataset.rdtype, rdataset.covers, rdataset.ttl
         )
-        self.items = dns.immutable.Dict(rdataset.items)
+        self.items = dns.immutable.Dict(rdataset.items) # type: ignore
 
-    def update_ttl(self, ttl):
+    def update_ttl(self, ttl: Any) -> Never:
         raise TypeError("immutable")
 
-    def add(self, rd, ttl=None):  # pyright: ignore
+    def add(self, rd: Any, ttl: Any=None) -> Never:
         raise TypeError("immutable")
 
-    def union_update(self, other):
+    def union_update(self, other: Any) -> Never:
         raise TypeError("immutable")
 
-    def intersection_update(self, other):
+    def intersection_update(self, other: Any) -> Never:
         raise TypeError("immutable")
 
-    def update(self, other):
+    def update(self, other: Any) -> Never:
         raise TypeError("immutable")
 
-    def __delitem__(self, i):
+    def __delitem__(self, i: Any) -> Never:
         raise TypeError("immutable")
 
     # lgtm complains about these not raising ArithmeticError, but there is
     # precedent for overrides of these methods in other classes to raise
     # TypeError, and it seems like the better exception.
 
-    def __ior__(self, other):  # lgtm[py/unexpected-raise-in-special-method]
+    def __ior__(self, other: Any) -> Never:  # lgtm[py/unexpected-raise-in-special-method]
         raise TypeError("immutable")
 
-    def __iand__(self, other):  # lgtm[py/unexpected-raise-in-special-method]
+    def __iand__(self, other: Any) -> Never:  # lgtm[py/unexpected-raise-in-special-method]
         raise TypeError("immutable")
 
-    def __iadd__(self, other):  # lgtm[py/unexpected-raise-in-special-method]
+    def __iadd__(self, other: Any) -> Never:  # lgtm[py/unexpected-raise-in-special-method]
         raise TypeError("immutable")
 
-    def __isub__(self, other):  # lgtm[py/unexpected-raise-in-special-method]
+    def __isub__(self, other: Any) -> Never:  # lgtm[py/unexpected-raise-in-special-method]
         raise TypeError("immutable")
 
-    def clear(self):
+    def clear(self) -> Never:
         raise TypeError("immutable")
 
-    def __copy__(self):
+    def __copy__(self) -> Self:
         return ImmutableRdataset(super().copy())  # pyright: ignore
 
-    def copy(self):
+    def copy(self) -> Self:
         return ImmutableRdataset(super().copy())  # pyright: ignore
 
-    def union(self, other):
+    def union(self, other: _Super) -> Self:
         return ImmutableRdataset(super().union(other))  # pyright: ignore
 
-    def intersection(self, other):
+    def intersection(self, other: _Super) -> Self:
         return ImmutableRdataset(super().intersection(other))  # pyright: ignore
 
-    def difference(self, other):
+    def difference(self, other: _Super) -> Self:
         return ImmutableRdataset(super().difference(other))  # pyright: ignore
 
-    def symmetric_difference(self, other):
+    def symmetric_difference(self, other: _Super) -> Self:
         return ImmutableRdataset(super().symmetric_difference(other))  # pyright: ignore
 
 

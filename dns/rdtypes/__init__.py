@@ -16,6 +16,21 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 """DNS rdata type classes"""
+from . import (
+    ANY,
+    IN,
+    CH,
+    dnskeybase,
+    dsbase,
+    euibase,
+    mxbase,
+    nsbase,
+    rrsigbase,
+    svcbbase,
+    tlsabase,
+    txtbase,
+    util,
+)
 
 __all__ = [
     "ANY",

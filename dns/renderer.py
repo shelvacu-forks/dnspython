@@ -22,6 +22,8 @@ import io
 import random
 import struct
 import time
+from collections.abc import Sequence, Iterator
+from typing import Literal, Any
 
 import dns.edns
 import dns.exception
@@ -41,13 +43,28 @@ ANSWER = 1
 AUTHORITY = 2
 ADDITIONAL = 3
 
+type SectionInt = Literal[0, 1, 2, 3]
 
-def _make_opt(flags=0, payload=DEFAULT_EDNS_PAYLOAD, options=None):
+
+def _make_opt(
+    flags: int = 0,
+    payload: int = DEFAULT_EDNS_PAYLOAD,
+    options: Sequence[dns.edns.Option] | None = None,
+) -> dns.rrset.RRset:
     opt = dns.rdtypes.ANY.OPT.OPT(payload, dns.rdatatype.OPT, options or ())
     return dns.rrset.from_rdata(dns.name.root, int(flags), opt)
 
 
-def _make_tsig(keyname, algorithm, time_signed, fudge, mac, original_id, error, other):
+def _make_tsig(
+    keyname: str | dns.name.Name | None,
+    algorithm: dns.tsig.ToAlgorithm,
+    time_signed: int,
+    fudge: int,
+    mac: bytearray | bytes,
+    original_id: int,
+    error: dns.rcode.Rcode | int,
+    other: bytearray | bytes,
+) -> dns.rrset.RRset:
     tsig = dns.rdtypes.ANY.TSIG.TSIG(
         dns.rdataclass.ANY,
         dns.rdatatype.TSIG,
@@ -107,7 +124,25 @@ class Renderer:
     mac: the MAC of the rendered message (if TSIG was used)
     """
 
-    def __init__(self, id=None, flags=0, max_size=65535, origin=None):
+    id: int
+    flags: int
+    max_size: int
+    origin: dns.name.Name | None
+    compress: dns.name.CompressType
+    section: SectionInt
+    counts: list[int]
+    output: io.BytesIO
+    mac: str
+    reserved: int
+    was_padded: bool
+
+    def __init__(
+        self,
+        id: int | None = None,
+        flags: int = 0,
+        max_size: int = 65535,
+        origin: dns.name.Name | None = None,
+    ) -> None:
         """Initialize a new renderer."""
 
         self.output = io.BytesIO()
@@ -126,7 +161,7 @@ class Renderer:
         self.reserved = 0
         self.was_padded = False
 
-    def _rollback(self, where):
+    def _rollback(self, where: int) -> None:
         """Truncate the output buffer at offset *where*, and remove any
         compression table entries that pointed beyond the truncation
         point.
@@ -134,14 +169,14 @@ class Renderer:
 
         self.output.seek(where)
         self.output.truncate()
-        keys_to_delete = []
+        keys_to_delete: list[dns.name.Name] = []
         for k, v in self.compress.items():
             if v >= where:
                 keys_to_delete.append(k)
         for k in keys_to_delete:
             del self.compress[k]
 
-    def _set_section(self, section):
+    def _set_section(self, section: SectionInt):
         """Set the renderer's current section.
 
         Sections must be rendered order: QUESTION, ANSWER, AUTHORITY,
@@ -157,7 +192,7 @@ class Renderer:
             self.section = section
 
     @contextlib.contextmanager
-    def _track_size(self):
+    def _track_size(self) -> Iterator[int]:
         start = self.output.tell()
         yield start
         if self.output.tell() > self.max_size:
@@ -165,7 +200,7 @@ class Renderer:
             raise dns.exception.TooBig
 
     @contextlib.contextmanager
-    def _temporarily_seek_to(self, where):
+    def _temporarily_seek_to(self, where: int) -> Iterator[None]:
         current = self.output.tell()
         try:
             self.output.seek(where)
@@ -173,7 +208,12 @@ class Renderer:
         finally:
             self.output.seek(current)
 
-    def add_question(self, qname, rdtype, rdclass=dns.rdataclass.IN):
+    def add_question(
+        self,
+        qname: dns.name.Name,
+        rdtype: dns.rdatatype.RdataType,
+        rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
+    ) -> None:
         """Add a question to the message."""
 
         self._set_section(QUESTION)
@@ -182,7 +222,12 @@ class Renderer:
             self.output.write(struct.pack("!HH", rdtype, rdclass))
         self.counts[QUESTION] += 1
 
-    def add_rrset(self, section, rrset, **kw):
+    def add_rrset(
+        self,
+        section: SectionInt,
+        rrset: dns.rrset.RRset,
+        **kw: Any,
+    ) -> None:
         """Add the rrset to the specified section.
 
         Any keyword arguments are passed on to the rdataset's to_wire()
@@ -194,7 +239,13 @@ class Renderer:
             n = rrset.to_wire(self.output, self.compress, self.origin, **kw)
         self.counts[section] += n
 
-    def add_rdataset(self, section, name, rdataset, **kw):
+    def add_rdataset(
+        self,
+        section: SectionInt,
+        name: dns.name.Name,
+        rdataset: dns.rdataset.Rdataset,
+        **kw: Any,
+    ):
         """Add the rdataset to the specified section, using the specified
         name as the owner name.
 
@@ -207,7 +258,13 @@ class Renderer:
             n = rdataset.to_wire(name, self.output, self.compress, self.origin, **kw)
         self.counts[section] += n
 
-    def add_opt(self, opt, pad=0, opt_size=0, tsig_size=0):
+    def add_opt(
+        self,
+        opt: dns.rrset.RRset,
+        pad: int = 0,
+        opt_size: int = 0,
+        tsig_size: int = 0,
+    ) -> None:
         """Add *opt* to the additional section, applying padding if desired.  The
         padding will take the specified precomputed OPT size and TSIG size into
         account.
@@ -218,19 +275,27 @@ class Renderer:
             ttl = opt.ttl
             assert opt_size >= 11
             opt_rdata = opt[0]
+            assert isinstance(opt_rdata, dns.rdtypes.ANY.OPT.OPT)
             size_without_padding = self.output.tell() + opt_size + tsig_size
             remainder = size_without_padding % pad
+            pad_b: bytes
             if remainder:
-                pad = b"\x00" * (pad - remainder)
+                pad_b = b"\x00" * (pad - remainder)
             else:
-                pad = b""
+                pad_b = b""
             options = list(opt_rdata.options)
-            options.append(dns.edns.GenericOption(dns.edns.OptionType.PADDING, pad))
+            options.append(dns.edns.GenericOption(dns.edns.OptionType.PADDING, pad_b))
             opt = _make_opt(ttl, opt_rdata.rdclass, options)  # pyright: ignore
             self.was_padded = True
         self.add_rrset(ADDITIONAL, opt)
 
-    def add_edns(self, edns, ednsflags, payload, options=None):
+    def add_edns(
+        self,
+        edns: int,
+        ednsflags: int,
+        payload: int,
+        options: Sequence[dns.edns.Option] | None = None,
+    ) -> None:
         """Add an EDNS OPT record to the message."""
 
         # make sure the EDNS version in ednsflags agrees with edns
@@ -241,41 +306,39 @@ class Renderer:
 
     def add_tsig(
         self,
-        keyname,
-        secret,
-        fudge,
-        id,
-        tsig_error,
-        other_data,
-        request_mac,
-        algorithm=dns.tsig.default_algorithm,
-    ):
+        keyname: dns.name.Name,
+        secret: dns.tsig.Key,
+        fudge: int,
+        id: int,
+        tsig_error: dns.rcode.Rcode | int,
+        other_data: bytearray | bytes,
+        request_mac: bytearray | bytes,
+        algorithm: dns.tsig.ToAlgorithm = dns.tsig.default_algorithm,
+    ) -> None:
         """Add a TSIG signature to the message."""
 
         s = self.output.getvalue()
 
-        if isinstance(secret, dns.tsig.Key):
-            key = secret
-        else:
-            key = dns.tsig.Key(keyname, secret, algorithm)
-        tsig = _make_tsig(  # pyright: ignore
+        key = secret
+        tsig_set = _make_tsig(
             keyname, algorithm, 0, fudge, b"", id, tsig_error, other_data
         )
-        tsig, _ = dns.tsig.sign(s, key, tsig[0], int(time.time()), request_mac)
-        self._write_tsig(tsig, keyname)
+        tsig_0 = tsig_set[0]
+        assert isinstance(tsig_0, dns.rdtypes.ANY.TSIG.TSIG)
+        tsig_rd, _ = key.sign(s, tsig_0, int(time.time()), request_mac)
+        self._write_tsig(tsig_rd, keyname)
 
-    def add_multi_tsig(
+    def add_multi_tsig[C: dns.tsig.AnyContext](
         self,
-        ctx,
-        keyname,
-        secret,
-        fudge,
-        id,
-        tsig_error,
-        other_data,
-        request_mac,
-        algorithm=dns.tsig.default_algorithm,
-    ):
+        ctx: C,
+        keyname: dns.name.Name,
+        secret: dns.tsig.KeyBase[C],
+        fudge: int,
+        id: int,
+        tsig_error: dns.rcode.Rcode | int,
+        other_data: bytearray | bytes,
+        request_mac: bytearray | bytes,
+    ) -> C:
         """Add a TSIG signature to the message. Unlike add_tsig(), this can be
         used for a series of consecutive DNS envelopes, e.g. for a zone
         transfer over TCP [RFC2845, 4.4].
@@ -286,20 +349,23 @@ class Renderer:
 
         s = self.output.getvalue()
 
-        if isinstance(secret, dns.tsig.Key):
-            key = secret
-        else:
-            key = dns.tsig.Key(keyname, secret, algorithm)
-        tsig = _make_tsig(  # pyright: ignore
-            keyname, algorithm, 0, fudge, b"", id, tsig_error, other_data
+        key = secret
+        tsig_set = _make_tsig(
+            keyname, key.algorithm, 0, fudge, b"", id, tsig_error, other_data
         )
-        tsig, ctx = dns.tsig.sign(
-            s, key, tsig[0], int(time.time()), request_mac, ctx, True
+        tsig_0 = tsig_set[0]
+        assert isinstance(tsig_0, dns.rdtypes.ANY.TSIG.TSIG)
+        tsig, ctx = key.sign(
+            s, tsig_0, int(time.time()), request_mac, ctx, True
         )
         self._write_tsig(tsig, keyname)
         return ctx
 
-    def _write_tsig(self, tsig, keyname):
+    def _write_tsig(
+        self,
+        tsig: dns.rdtypes.ANY.TSIG.TSIG,
+        keyname: dns.name.Name,
+    ) -> None:
         if self.was_padded:
             compress = None
         else:

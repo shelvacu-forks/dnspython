@@ -5,7 +5,7 @@
 import collections
 import threading
 from collections.abc import Callable
-from typing import cast
+from typing import cast, Any, Literal
 
 import dns.exception
 import dns.name
@@ -29,6 +29,8 @@ WritableVersion = dns.zone.WritableVersion
 ImmutableVersion = dns.zone.ImmutableVersion
 Transaction = dns.zone.Transaction
 
+_PruningPolicy = Callable[["Zone", Version], bool | None]
+
 
 class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
     __slots__ = [
@@ -43,12 +45,19 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
 
     node_factory: Callable[[], dns.node.Node] = Node
 
+    _versions: collections.deque[Version]
+    _version_lock: threading.Lock
+    _write_txn: Transaction | None
+    _write_waiters: collections.deque[threading.Event]
+    _pruning_policy: _PruningPolicy
+    _readers: set[Transaction]
+
     def __init__(
         self,
         origin: dns.name.Name | str | None,
         rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
         relativize: bool = True,
-        pruning_policy: Callable[["Zone", Version], bool | None] | None = None,
+        pruning_policy: _PruningPolicy | None = None,
     ):
         """Initialize a versioned zone object.
 
@@ -76,8 +85,13 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
         self._write_event: threading.Event | None = None
         self._write_waiters: collections.deque[threading.Event] = collections.deque()
         self._readers: set[Transaction] = set()
+        origin_nonstr:dns.name.Name | None
+        if isinstance(origin, str):
+            origin_nonstr = dns.name.from_text(origin)
+        else:
+            origin_nonstr = origin
         self._commit_version_unlocked(
-            None, WritableVersion(self, replacement=True), origin
+            None, WritableVersion(self, replacement=True), origin_nonstr
         )
 
     def reader(
@@ -168,18 +182,18 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
         self._write_txn._setup_version()
         return self._write_txn
 
-    def _maybe_wakeup_one_waiter_unlocked(self):
+    def _maybe_wakeup_one_waiter_unlocked(self) -> None:
         if len(self._write_waiters) > 0:
             self._write_event = self._write_waiters.popleft()
             self._write_event.set()
 
     # pylint: disable=unused-argument
-    def _default_pruning_policy(self, zone, version):
+    def _default_pruning_policy(self, zone:Any, version:Any) -> Literal[True]:
         return True
 
     # pylint: enable=unused-argument
 
-    def _prune_versions_unlocked(self):
+    def _prune_versions_unlocked(self) -> None:
         assert len(self._versions) > 0
         # Don't ever prune a version greater than or equal to one that
         # a reader has open.  This pins versions in memory while the
@@ -207,12 +221,12 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
             raise ValueError("max versions must be at least 1")
         if max_versions is None:
             # pylint: disable=unused-argument
-            def policy(zone, _):  # pyright: ignore
+            def policy(zone: "Zone", _: Version):  # pyright: ignore
                 return False
 
         else:
 
-            def policy(zone, _):
+            def policy(zone: "Zone", _: Version):
                 return len(zone._versions) > max_versions
 
         self.set_pruning_policy(policy)
@@ -237,21 +251,21 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
             self._pruning_policy = policy
             self._prune_versions_unlocked()
 
-    def _end_read(self, txn):
+    def _end_read(self, txn: Transaction) -> None:
         with self._version_lock:
             self._readers.remove(txn)
             self._prune_versions_unlocked()
 
-    def _end_write_unlocked(self, txn):
+    def _end_write_unlocked(self, txn: Transaction) -> None:
         assert self._write_txn == txn
         self._write_txn = None
         self._maybe_wakeup_one_waiter_unlocked()
 
-    def _end_write(self, txn):
+    def _end_write(self, txn: Transaction) -> None:
         with self._version_lock:
             self._end_write_unlocked(txn)
 
-    def _commit_version_unlocked(self, txn, version, origin):
+    def _commit_version_unlocked(self, txn: Transaction | None, version: Version, origin: dns.name.Name | None) -> None:
         self._versions.append(version)
         self._prune_versions_unlocked()
         self.nodes = version.nodes
@@ -261,11 +275,11 @@ class Zone(dns.zone.Zone):  # lgtm[py/missing-equals]
         if txn is not None:
             self._end_write_unlocked(txn)
 
-    def _commit_version(self, txn, version, origin):
+    def _commit_version(self, txn: Transaction | None, version: Version, origin: dns.name.Name | None) -> None:
         with self._version_lock:
             self._commit_version_unlocked(txn, version, origin)
 
-    def _get_next_version_id(self):
+    def _get_next_version_id(self) -> int:
         if len(self._versions) > 0:
             id = self._versions[-1].id + 1
         else:

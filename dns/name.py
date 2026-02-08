@@ -19,10 +19,9 @@
 
 import copy
 import encodings.idna  # pyright: ignore
-import functools
 import struct
 from collections.abc import Callable, Iterable
-from typing import Any
+from typing import Any, Literal, SupportsIndex, overload
 
 import dns._features
 import dns.enum
@@ -129,11 +128,6 @@ class IDNAException(dns.exception.DNSException):
 
     supp_kwargs = {"idna_exception"}
     fmt = "IDNA processing exception: {idna_exception}"
-
-    # We do this as otherwise mypy complains about unexpected keyword argument
-    # idna_exception
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 class NeedSubdomainOfOrigin(dns.exception.DNSException):
@@ -370,25 +364,25 @@ class Name:
     """
 
     __slots__ = ["labels"]
+    labels:tuple[bytes, ...]
 
     def __init__(self, labels: Iterable[bytes | str]):
         """*labels* is any iterable whose values are ``str`` or ``bytes``."""
 
-        blabels = [_maybe_convert_to_binary(x) for x in labels]
-        self.labels = tuple(blabels)
+        self.labels = tuple(_maybe_convert_to_binary(x) for x in labels)
         _validate_labels(self.labels)
 
     def __copy__(self):
         return Name(self.labels)
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Any):
         return Name(copy.deepcopy(self.labels, memo))
 
     def __getstate__(self):
         # Names can be pickled
         return {"labels": self.labels}
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: dict[Literal["labels"], tuple[bytes, ...]]):
         super().__setattr__("labels", state["labels"])
         _validate_labels(self.labels)
 
@@ -531,46 +525,46 @@ class Name:
 
         return Name([x.lower() for x in self.labels])
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] == 0
         else:
             return False
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] != 0
         else:
             return True
 
-    def __lt__(self, other):
+    def __lt__(self, other: "Name") -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] < 0
         else:
             return NotImplemented
 
-    def __le__(self, other):
+    def __le__(self, other: "Name") -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] <= 0
         else:
             return NotImplemented
 
-    def __ge__(self, other):
+    def __ge__(self, other: "Name") -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] >= 0
         else:
             return NotImplemented
 
-    def __gt__(self, other):
+    def __gt__(self, other: "Name") -> bool:
         if isinstance(other, Name):
             return self.fullcompare(other)[1] > 0
         else:
             return NotImplemented
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<DNS name " + self.__str__() + ">"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_text(False)
 
     def to_text(self, omit_final_dot: bool = False) -> str:
@@ -742,13 +736,17 @@ class Name:
 
         return len(self.labels)
 
-    def __getitem__(self, index: Any) -> Any:
+    @overload
+    def __getitem__(self, index: SupportsIndex) -> bytes: ...
+    @overload
+    def __getitem__(self, index: slice) -> tuple[bytes, ...]: ...
+    def __getitem__(self, index: SupportsIndex|slice) -> bytes|tuple[bytes, ...]:
         return self.labels[index]
 
-    def __add__(self, other):
+    def __add__(self, other: "Name") -> "Name":
         return self.concatenate(other)
 
-    def __sub__(self, other):
+    def __sub__(self, other: "Name") -> "Name":
         return self.relativize(other)
 
     def split(self, depth: int) -> tuple["Name", "Name"]:
@@ -918,7 +916,7 @@ def from_unicode(
     Returns a ``dns.name.Name``.
     """
 
-    labels = []
+    labels:list[bytes] = []
     label = ""
     escaping = False
     edigits = 0
@@ -1010,7 +1008,7 @@ def from_text(
         # then it's still "all ASCII" even though the domain name has
         # codepoints > 127.
         text = text.encode("ascii")
-    labels = []
+    labels:list[bytes] = []
     label = b""
     escaping = False
     edigits = 0
@@ -1074,7 +1072,7 @@ def from_wire_parser(parser: dns.wirebase.Parser) -> Name:
     Returns a ``dns.name.Name``
     """
 
-    labels = []
+    labels:list[bytes] = []
     biggest_pointer = parser.current
     with parser.restore_furthest():
         count = parser.get_uint8()
@@ -1129,13 +1127,13 @@ _AT_SIGN_VALUE = ord("@")
 _LEFT_SQUARE_BRACKET_VALUE = ord("[")
 
 
-def _wire_length(labels):
-    return functools.reduce(lambda v, x: v + len(x) + 1, labels, 0)
+def _wire_length(labels: Iterable[bytes]) -> int:
+    return sum(map(lambda x: len(x) + 1, labels))
 
 
-def _pad_to_max_name(name):
+def _pad_to_max_name(name: Name):
     needed = 255 - _wire_length(name.labels)
-    new_labels = []
+    new_labels:list[bytes] = []
     while needed > 64:
         new_labels.append(_MAXIMAL_OCTET * 63)
         needed -= 64
@@ -1149,7 +1147,7 @@ def _pad_to_max_name(name):
     return Name(new_labels)
 
 
-def _pad_to_max_label(label, suffix_labels):
+def _pad_to_max_label(label:bytes, suffix_labels: Iterable[bytes]):
     length = len(label)
     # We have to subtract one here to account for the length byte of label.
     remaining = 255 - _wire_length(suffix_labels) - length - 1

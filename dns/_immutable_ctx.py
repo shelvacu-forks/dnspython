@@ -6,8 +6,10 @@
 
 import contextvars
 import inspect
+from collections.abc import Callable
+from typing import Any, Concatenate
 
-_in__init__ = contextvars.ContextVar("_immutable_in__init__", default=False)
+_in__init__ = contextvars.ContextVar[Any]("_immutable_in__init__", default=False)
 
 
 class _Immutable:
@@ -19,25 +21,25 @@ class _Immutable:
 
     __slots__ = ()
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if _in__init__.get() is not self:
             raise TypeError("object doesn't support attribute assignment")
         else:
             super().__setattr__(name, value)
 
-    def __delattr__(self, name):
+    def __delattr__(self, name: str) -> None:
         if _in__init__.get() is not self:
             raise TypeError("object doesn't support attribute assignment")
         else:
             super().__delattr__(name)
 
 
-def _immutable_init(f):
-    def nf(*args, **kwargs):
-        previous = _in__init__.set(args[0])
+def _immutable_init[**P, T](f: Callable[Concatenate[T, P], None]) -> Callable[Concatenate[T, P], None]:
+    def nf(_self: T, *args: P.args, **kwargs: P.kwargs):
+        previous = _in__init__.set(_self)
         try:
             # call the actual __init__
-            f(*args, **kwargs)
+            f(_self, *args, **kwargs)
         finally:
             _in__init__.reset(previous)
 
@@ -45,13 +47,13 @@ def _immutable_init(f):
     return nf
 
 
-def immutable(cls):
+def immutable[T: type[Any]](cls: T) -> T:
     if _Immutable in cls.__mro__:
         # Some ancestor already has the mixin, so just make sure we keep
         # following the __init__ protocol.
         cls.__init__ = _immutable_init(cls.__init__)
         if hasattr(cls, "__setstate__"):
-            cls.__setstate__ = _immutable_init(cls.__setstate__)
+            cls.__setstate__ = _immutable_init(cls.__setstate__) # type: ignore
         ncls = cls
     else:
         # Mixin the Immutable class and follow the __init__ protocol.
@@ -60,14 +62,14 @@ def immutable(cls):
             __slots__ = ()
 
             @_immutable_init
-            def __init__(self, *args, **kwargs):
+            def __init__(self, *args: Any, **kwargs: Any):
                 super().__init__(*args, **kwargs)
 
             if hasattr(cls, "__setstate__"):
 
                 @_immutable_init
-                def __setstate__(self, *args, **kwargs):
-                    super().__setstate__(*args, **kwargs)
+                def __setstate__(self, *args: Any, **kwargs: Any):
+                    super().__setstate__(*args, **kwargs) # type: ignore
 
         # make ncls have the same name and module as cls
         ncls.__name__ = cls.__name__

@@ -21,6 +21,8 @@ Dnspython modules may also define their own exceptions, which will
 always be subclasses of ``DNSException``.
 """
 
+from typing import overload, Any, Literal
+
 
 class DNSException(Exception):
     """Abstract base class shared by all dnspython exceptions.
@@ -48,8 +50,13 @@ class DNSException(Exception):
     msg: str | None = None  # non-parametrized message
     supp_kwargs: set[str] = set()  # accepted parameters for _fmt_kwargs (sanity check)
     fmt: str | None = None  # message parametrized with results from _fmt_kwargs
+    kwargs: dict[str, Any]
 
-    def __init__(self, *args, **kwargs):
+    @overload
+    def __init__(self, *args: Any) -> None: ...
+    @overload
+    def __init__(self, **kwargs: Any) -> None: ...
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._check_params(*args, **kwargs)
         if kwargs:
             # This call to a virtual method from __init__ is ok in our usage
@@ -65,7 +72,7 @@ class DNSException(Exception):
         else:
             super().__init__(self.msg)
 
-    def _check_params(self, *args, **kwargs):
+    def _check_params(self, *args: Any, **kwargs: Any):
         """Old exceptions supported only args and not kwargs.
 
         For sanity we do not allow to mix old and new behavior."""
@@ -74,24 +81,24 @@ class DNSException(Exception):
                 kwargs
             ), "keyword arguments are mutually exclusive with positional args"
 
-    def _check_kwargs(self, **kwargs):
+    def _check_kwargs(self, **kwargs: Any) -> dict[str, Any]:
         if kwargs:
             assert (
                 set(kwargs.keys()) == self.supp_kwargs
             ), f"following set of keyword args is required: {self.supp_kwargs}"
         return kwargs
 
-    def _fmt_kwargs(self, **kwargs):
+    def _fmt_kwargs(self, **kwargs: Any) -> dict[str, Any]:
         """Format kwargs before printing them.
 
         Resulting dictionary has to have keys necessary for str.format call
         on fmt class variable.
         """
-        fmtargs = {}
+        fmtargs: dict[str, Any] = {}
         for kw, data in kwargs.items():
             if isinstance(data, list | set):
                 # convert list of <someobj> to list of str(<someobj>)
-                fmtargs[kw] = list(map(str, data))
+                fmtargs[kw] = list(map(str, data)) # type: ignore[reportUnknownArgumentType]
                 if len(fmtargs[kw]) == 1:
                     # remove list brackets [] from single-item lists
                     fmtargs[kw] = fmtargs[kw].pop()
@@ -99,7 +106,7 @@ class DNSException(Exception):
                 fmtargs[kw] = data
         return fmtargs
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.kwargs and self.fmt:
             # provide custom message constructed from keyword arguments
             fmtargs = self._fmt_kwargs(**self.kwargs)
@@ -131,11 +138,6 @@ class Timeout(DNSException):
     supp_kwargs = {"timeout"}
     fmt = "The DNS operation timed out after {timeout:.3f} seconds"
 
-    # We do this as otherwise mypy complains about unexpected keyword argument
-    # idna_exception
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
 
 class UnsupportedAlgorithm(DNSException):
     """The DNSSEC algorithm is not supported."""
@@ -153,14 +155,15 @@ class DeniedByPolicy(DNSException):
     """Denied by DNSSEC policy."""
 
 
-class ExceptionWrapper:
-    def __init__(self, exception_class):
+class ExceptionWrapper[T: Exception]:
+    exception_class: type[T]
+    def __init__(self, exception_class: type[T]):
         self.exception_class = exception_class
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type:type[Exception]|None, exc_val:Exception|None, exc_tb:Any) -> Literal[False]:
         if exc_type is not None and not isinstance(exc_val, self.exception_class):
             raise self.exception_class(str(exc_val)) from exc_val
         return False

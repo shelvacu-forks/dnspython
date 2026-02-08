@@ -19,14 +19,21 @@
 
 import base64
 import hashlib
+import _hashlib
 import hmac
 import struct
+import enum
+import abc
+from collections.abc import Callable, Buffer
+from typing import Protocol, Any, overload, Literal, cast, TypeVar, Generic, TypeIs
 
 import dns.exception
 import dns.name
 import dns.rcode
 import dns.rdataclass
 import dns.rdatatype
+import dns.tsigkeyring
+from dns.rdtypes.ANY.TSIG import TSIG
 
 
 class BadTime(dns.exception.DNSException):
@@ -67,20 +74,49 @@ class PeerBadTruncation(PeerError):
 
 # TSIG Algorithms
 
-HMAC_MD5 = dns.name.from_text("HMAC-MD5.SIG-ALG.REG.INT")
-HMAC_SHA1 = dns.name.from_text("hmac-sha1")
-HMAC_SHA224 = dns.name.from_text("hmac-sha224")
-HMAC_SHA256 = dns.name.from_text("hmac-sha256")
-HMAC_SHA256_128 = dns.name.from_text("hmac-sha256-128")
-HMAC_SHA384 = dns.name.from_text("hmac-sha384")
-HMAC_SHA384_192 = dns.name.from_text("hmac-sha384-192")
-HMAC_SHA512 = dns.name.from_text("hmac-sha512")
-HMAC_SHA512_256 = dns.name.from_text("hmac-sha512-256")
-GSS_TSIG = dns.name.from_text("gss-tsig")
+@enum.unique
+@enum.global_enum
+class Algorithm(enum.Enum):
+    HMAC_MD5 = dns.name.from_text("HMAC-MD5.SIG-ALG.REG.INT")
+    HMAC_SHA1 = dns.name.from_text("hmac-sha1")
+    HMAC_SHA224 = dns.name.from_text("hmac-sha224")
+    HMAC_SHA256 = dns.name.from_text("hmac-sha256")
+    HMAC_SHA256_128 = dns.name.from_text("hmac-sha256-128")
+    HMAC_SHA384 = dns.name.from_text("hmac-sha384")
+    HMAC_SHA384_192 = dns.name.from_text("hmac-sha384-192")
+    HMAC_SHA512 = dns.name.from_text("hmac-sha512")
+    HMAC_SHA512_256 = dns.name.from_text("hmac-sha512-256")
+    GSS_TSIG = dns.name.from_text("gss-tsig")
 
-default_algorithm = HMAC_SHA256
+    @classmethod
+    def _missing_(cls, value: Any) -> "Algorithm | None":
+        if isinstance(value, str):
+            name = dns.name.from_text(value)
+            for member in cls:
+                if member.value == name:
+                    return member
+        return None
 
-mac_sizes = {
+
+type ToAlgorithm = str | dns.name.Name | Algorithm
+
+HMAC_MD5 = Algorithm.HMAC_MD5 
+HMAC_SHA1 = Algorithm.HMAC_SHA1 
+HMAC_SHA224 = Algorithm.HMAC_SHA224 
+HMAC_SHA256 = Algorithm.HMAC_SHA256 
+HMAC_SHA256_128 = Algorithm.HMAC_SHA256_128 
+HMAC_SHA384 = Algorithm.HMAC_SHA384 
+HMAC_SHA384_192 = Algorithm.HMAC_SHA384_192 
+HMAC_SHA512 = Algorithm.HMAC_SHA512 
+HMAC_SHA512_256 = Algorithm.HMAC_SHA512_256 
+GSS_TSIG = Algorithm.GSS_TSIG 
+
+type AlgorithmGSS = Literal[Algorithm.GSS_TSIG]
+type AlgorithmHMAC = Literal[Algorithm.HMAC_MD5, Algorithm.HMAC_SHA1, Algorithm.HMAC_SHA224, Algorithm.HMAC_SHA256, Algorithm.HMAC_SHA256_128, Algorithm.HMAC_SHA384, Algorithm.HMAC_SHA384_192, Algorithm.HMAC_SHA512, Algorithm.HMAC_SHA512_256]
+
+default_algorithm:Algorithm = HMAC_SHA256
+
+mac_sizes:dict[Algorithm, int] = {
     HMAC_SHA1: 20,
     HMAC_SHA224: 28,
     HMAC_SHA256: 32,
@@ -94,6 +130,16 @@ mac_sizes = {
 }
 
 
+class SecurityContext(Protocol):
+    def get_signature(self, message: bytes) -> bytes: ...
+
+    def verify_signature(self, message: bytes, mic: bytes) -> int: ...
+
+    def step(self, token: bytes | None = None) -> bytes | None: ...
+
+    def __repr__(self) -> str: ...
+
+
 class GSSTSig:
     """
     GSS-TSIG TSIG implementation.  This uses the GSS-API context established
@@ -104,19 +150,23 @@ class GSSTSig:
     to the GSSAPI object required, rather than the key itself.
     """
 
-    def __init__(self, gssapi_context):
+    gssapi_context: SecurityContext
+    data: bytes
+    name: str
+
+    def __init__(self, gssapi_context: SecurityContext):
         self.gssapi_context = gssapi_context
         self.data = b""
         self.name = "gss-tsig"
 
-    def update(self, data):
+    def update(self, data: Buffer):
         self.data += data
 
-    def sign(self):
+    def sign(self) -> bytes:
         # defer to the GSSAPI function to sign
         return self.gssapi_context.get_signature(self.data)
 
-    def verify(self, expected):
+    def verify(self, expected: bytes) -> int:
         try:
             # defer to the GSSAPI function to verify
             return self.gssapi_context.verify_signature(self.data, expected)
@@ -126,10 +176,16 @@ class GSSTSig:
 
 
 class GSSTSigAdapter:
-    def __init__(self, keyring):
+    keyring: dns.tsigkeyring.Keyring
+
+    def __init__(self, keyring: dns.tsigkeyring.Keyring):
         self.keyring = keyring
 
-    def __call__(self, message, keyname):
+    def __call__(
+        self,
+        message: dns.message.Message,
+        keyname: dns.name.Name,
+    ) -> Any | None:
         if keyname in self.keyring:
             key = self.keyring[keyname]
             if isinstance(key, Key) and key.algorithm == GSS_TSIG:
@@ -140,7 +196,12 @@ class GSSTSigAdapter:
             return None
 
     @classmethod
-    def parse_tkey_and_step(cls, key, message, keyname):
+    def parse_tkey_and_step(
+        cls,
+        key: "Key",
+        message: dns.message.Message,
+        keyname: dns.name.Name,
+    ) -> bytes | None:
         # if the message is a TKEY type, absorb the key material
         # into the context using step(); this is used to allow the
         # client to complete the GSSAPI negotiation before attempting
@@ -150,11 +211,17 @@ class GSSTSigAdapter:
                 message.answer, keyname, dns.rdataclass.ANY, dns.rdatatype.TKEY
             )
             if rrset:
-                token = rrset[0].key
+                rd = rrset[0]
+                assert isinstance(rd, dns.rdtypes.ANY.TKEY.TKEY)
+                token = rd.key
+                assert not isinstance(key.secret, bytes)
                 gssapi_context = key.secret
                 return gssapi_context.step(token)
         except KeyError:
             pass
+
+
+type _Digestmod = Callable[[], _hashlib.HASH]
 
 
 class HMACTSig:
@@ -163,36 +230,39 @@ class HMACTSig:
     sign/verify operations.
     """
 
-    _hashes = {
-        HMAC_SHA1: hashlib.sha1,
-        HMAC_SHA224: hashlib.sha224,
-        HMAC_SHA256: hashlib.sha256,
+    _hashes: dict[Algorithm, tuple[_Digestmod, int | None]] = {
+        HMAC_SHA1: (hashlib.sha1, None),
+        HMAC_SHA224: (hashlib.sha224, None),
+        HMAC_SHA256: (hashlib.sha256, None),
         HMAC_SHA256_128: (hashlib.sha256, 128),
-        HMAC_SHA384: hashlib.sha384,
+        HMAC_SHA384: (hashlib.sha384, None),
         HMAC_SHA384_192: (hashlib.sha384, 192),
-        HMAC_SHA512: hashlib.sha512,
+        HMAC_SHA512: (hashlib.sha512, None),
         HMAC_SHA512_256: (hashlib.sha512, 256),
-        HMAC_MD5: hashlib.md5,
+        HMAC_MD5: (hashlib.md5, None),
     }
 
-    def __init__(self, key, algorithm):
-        try:
-            hashinfo = self._hashes[algorithm]
-        except KeyError:
+    hmac_context: hmac.HMAC
+    size: int | None
+    name: str
+
+    def __init__(
+        self,
+        key: bytes,
+        algorithm: ToAlgorithm,
+    ) -> None:
+        algorithm_norm = Algorithm(algorithm)
+        if algorithm_norm not in self._hashes:
             raise NotImplementedError(f"TSIG algorithm {algorithm} is not supported")
+        digestmod, self.size = self._hashes[algorithm_norm]
 
         # create the HMAC context
-        if isinstance(hashinfo, tuple):
-            self.hmac_context = hmac.new(key, digestmod=hashinfo[0])  # type: ignore
-            self.size = hashinfo[1]
-        else:
-            self.hmac_context = hmac.new(key, digestmod=hashinfo)
-            self.size = None
+        self.hmac_context = hmac.new(key, digestmod=digestmod)
         self.name = self.hmac_context.name
         if self.size:
             self.name += f"-{self.size}"
 
-    def update(self, data):
+    def update(self, data: Buffer):
         return self.hmac_context.update(data)
 
     def sign(self):
@@ -203,158 +273,363 @@ class HMACTSig:
             digest = digest[: (self.size // 8)]
         return digest
 
-    def verify(self, expected):
+    def verify(self, expected: Buffer):
         # re-digest and compare the results
         mac = self.sign()
         if not hmac.compare_digest(mac, expected):
             raise BadSignature
 
 
-def _digest(wire, key, rdata, time=None, request_mac=None, ctx=None, multi=None):
-    """Return a context containing the TSIG rdata for the input parameters
-    @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object
-    @raises ValueError: I{other_data} is too long
-    @raises NotImplementedError: I{algorithm} is not supported
-    """
+AnyContext = HMACTSig | GSSTSig
 
-    first = not (ctx and multi)
-    if first:
-        ctx = get_context(key)
-        if request_mac:
-            ctx.update(struct.pack("!H", len(request_mac)))
-            ctx.update(request_mac)
-    assert ctx is not None  # for type checkers
-    ctx.update(struct.pack("!H", rdata.original_id))
-    ctx.update(wire[2:])
-    if first:
-        ctx.update(key.name.to_digestable())
-        ctx.update(struct.pack("!H", dns.rdataclass.ANY))
-        ctx.update(struct.pack("!I", 0))
-    if time is None:
-        time = rdata.time_signed
-    upper_time = (time >> 32) & 0xFFFF
-    lower_time = time & 0xFFFFFFFF
-    time_encoded = struct.pack("!HIH", upper_time, lower_time, rdata.fudge)
-    other_len = len(rdata.other)
-    if other_len > 65535:
-        raise ValueError("TSIG Other Data is > 65535 bytes")
-    if first:
-        ctx.update(key.algorithm.to_digestable() + time_encoded)
-        ctx.update(struct.pack("!HH", rdata.error, other_len) + rdata.other)
-    else:
-        ctx.update(time_encoded)
-    return ctx
+_C = TypeVar('_C', bound=AnyContext, covariant=True, contravariant=False, infer_variance=False)
 
+class KeyBase(Generic[_C], metaclass=abc.ABCMeta):
+    @property
+    @abc.abstractmethod
+    def name(self) -> dns.name.Name: ...
 
-def _maybe_start_digest(key, mac, multi):
-    """If this is the first message in a multi-message sequence,
-    start a new context.
-    @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object
-    """
-    if multi:
-        ctx = get_context(key)
-        ctx.update(struct.pack("!H", len(mac)))
-        ctx.update(mac)
-        return ctx
-    else:
-        return None
+    @property
+    @abc.abstractmethod
+    def algorithm(self) -> Algorithm: ...
 
+    @property
+    @abc.abstractmethod
+    def secret(self) -> bytes | SecurityContext: ...
 
-def sign(wire, key, rdata, time=None, request_mac=None, ctx=None, multi=False):
-    """Return a (tsig_rdata, mac, ctx) tuple containing the HMAC TSIG rdata
-    for the input parameters, the HMAC MAC calculated by applying the
-    TSIG signature algorithm, and the TSIG digest context.
-    @rtype: (string, dns.tsig.HMACTSig or dns.tsig.GSSTSig object)
-    @raises ValueError: I{other_data} is too long
-    @raises NotImplementedError: I{algorithm} is not supported
-    """
+    @abc.abstractmethod
+    def _secret_repr(self) -> str: ...
 
-    ctx = _digest(wire, key, rdata, time, request_mac, ctx, multi)
-    mac = ctx.sign()
-    tsig = rdata.replace(time_signed=time, mac=mac)
+    @abc.abstractmethod
+    def get_context(self) -> _C: ...
 
-    return (tsig, _maybe_start_digest(key, mac, multi))
+    @abc.abstractmethod
+    def is_hmac(self) -> bool: ...
 
+    def __repr__(self) -> str:
+        return f"<DNS key name='{self.name}', algorithm='{self.algorithm}', secret={self._secret_repr()}>"
 
-def validate(
-    wire, key, owner, rdata, now, request_mac, tsig_start, ctx=None, multi=False
-):
-    """Validate the specified TSIG rdata against the other input parameters.
-
-    @raises FormError: The TSIG is badly formed.
-    @raises BadTime: There is too much time skew between the client and the
-    server.
-    @raises BadSignature: The TSIG signature did not validate
-    @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object"""
-
-    (adcount,) = struct.unpack("!H", wire[10:12])
-    if adcount == 0:
-        raise dns.exception.FormError
-    adcount -= 1
-    new_wire = wire[0:10] + struct.pack("!H", adcount) + wire[12:tsig_start]
-    if rdata.error != 0:
-        if rdata.error == dns.rcode.BADSIG:
-            raise PeerBadSignature
-        elif rdata.error == dns.rcode.BADKEY:
-            raise PeerBadKey
-        elif rdata.error == dns.rcode.BADTIME:
-            raise PeerBadTime
-        elif rdata.error == dns.rcode.BADTRUNC:
-            raise PeerBadTruncation
-        else:
-            raise PeerError(f"unknown TSIG error code {rdata.error}")
-    if abs(rdata.time_signed - now) > rdata.fudge:
-        raise BadTime
-    if key.name != owner:
-        raise BadKey
-    if key.algorithm != rdata.algorithm:
-        raise BadAlgorithm
-    ctx = _digest(new_wire, key, rdata, None, request_mac, ctx, multi)
-    ctx.verify(rdata.mac)
-    return _maybe_start_digest(key, rdata.mac, multi)
-
-
-def get_context(key):
-    """Returns an HMAC context for the specified key.
-
-    @rtype: HMAC context
-    @raises NotImplementedError: I{algorithm} is not supported
-    """
-
-    if key.algorithm == GSS_TSIG:
-        return GSSTSig(key.secret)
-    else:
-        return HMACTSig(key.secret, key.algorithm)
-
-
-class Key:
-    def __init__(
-        self,
-        name: dns.name.Name | str,
-        secret: bytes | str,
-        algorithm: dns.name.Name | str = default_algorithm,
-    ):
-        if isinstance(name, str):
-            name = dns.name.from_text(name)
-        self.name = name
-        if isinstance(secret, str):
-            secret = base64.decodebytes(secret.encode())
-        self.secret = secret
-        if isinstance(algorithm, str):
-            algorithm = dns.name.from_text(algorithm)
-        self.algorithm = algorithm
-
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         return (
-            isinstance(other, Key)
+            isinstance(other, type(self))
             and self.name == other.name
             and self.secret == other.secret
             and self.algorithm == other.algorithm
         )
 
-    def __repr__(self):
-        r = f"<DNS key name='{self.name}', " + f"algorithm='{self.algorithm}'"
-        if self.algorithm != GSS_TSIG:
-            r += f", secret='{base64.b64encode(self.secret).decode()}'"
-        r += ">"
-        return r
+    def _digest(
+        self,
+        wire: bytes | bytearray,
+        rdata: TSIG,
+        time: int | None = None,
+        request_mac: bytes | bytearray | None = None,
+        ctx: _C | None = None,
+        multi: bool = False,
+    ) -> _C:
+        """Return a context containing the TSIG rdata for the input parameters
+        @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object
+        @raises ValueError: I{other_data} is too long
+        @raises NotImplementedError: I{algorithm} is not supported
+        """
+
+        first = not (ctx and multi)
+        if first:
+            ctx = self.get_context()
+            if request_mac:
+                ctx.update(struct.pack("!H", len(request_mac)))
+                ctx.update(request_mac)
+        assert ctx is not None  # for type checkers
+        ctx.update(struct.pack("!H", rdata.original_id))
+        ctx.update(wire[2:])
+        if first:
+            ctx.update(self.name.to_digestable())
+            ctx.update(struct.pack("!H", dns.rdataclass.ANY))
+            ctx.update(struct.pack("!I", 0))
+        if time is None:
+            time = rdata.time_signed
+        upper_time = (time >> 32) & 0xFFFF
+        lower_time = time & 0xFFFFFFFF
+        time_encoded = struct.pack("!HIH", upper_time, lower_time, rdata.fudge)
+        other_len = len(rdata.other)
+        if other_len > 65535:
+            raise ValueError("TSIG Other Data is > 65535 bytes")
+        if first:
+            ctx.update(self.algorithm.value.to_digestable() + time_encoded)
+            ctx.update(struct.pack("!HH", rdata.error, other_len) + rdata.other)
+        else:
+            ctx.update(time_encoded)
+        return ctx
+
+    @overload
+    def _maybe_start_digest(
+        self,
+        mac: bytes | bytearray,
+        multi: Literal[True],
+    ) -> _C: ...
+    @overload
+    def _maybe_start_digest(
+        self,
+        mac: bytes | bytearray,
+        multi: Literal[False],
+    ) -> None: ...
+    def _maybe_start_digest(
+        self,
+        mac: bytes | bytearray,
+        multi: bool,
+    ) -> _C | None:
+        """If this is the first message in a multi-message sequence,
+        start a new context.
+        @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object
+        """
+        if multi:
+            ctx = self.get_context()
+            ctx.update(struct.pack("!H", len(mac)))
+            ctx.update(mac)
+            return ctx
+        else:
+            return None
+
+    @overload
+    def sign(
+        self,
+        wire: bytes | bytearray,
+        rdata: TSIG,
+        time: int | None = None,
+        request_mac: bytes | bytearray | None = None,
+        ctx: _C | None = None,
+        multi: Literal[False] = False,
+    ) -> tuple[TSIG, None]: ...
+    @overload
+    def sign(
+        self,
+        wire: bytes | bytearray,
+        rdata: TSIG,
+        time: int | None,
+        request_mac: bytes | bytearray | None,
+        ctx: _C | None,
+        multi: Literal[True],
+    ) -> tuple[TSIG, _C]: ...
+    @overload
+    def sign(
+        self,
+        wire: bytes | bytearray,
+        rdata: TSIG,
+        time: int | None = None,
+        request_mac: bytes | bytearray | None = None,
+        ctx: _C | None = None,
+        multi: bool = False,
+    ) -> tuple[TSIG, _C | None]: ...
+    def sign(
+        self,
+        wire: bytes | bytearray,
+        rdata: TSIG,
+        time: int | None = None,
+        request_mac: bytes | bytearray | None = None,
+        ctx: _C | None = None,
+        multi: bool = False,
+    ) -> tuple[TSIG, _C | None]:
+        """Return a (tsig_rdata, mac, ctx) tuple containing the HMAC TSIG rdata
+        for the input parameters, the HMAC MAC calculated by applying the
+        TSIG signature algorithm, and the TSIG digest context.
+        @rtype: (string, dns.tsig.HMACTSig or dns.tsig.GSSTSig object)
+        @raises ValueError: I{other_data} is too long
+        @raises NotImplementedError: I{algorithm} is not supported
+        """
+
+        ctx = self._digest(wire, rdata, time, request_mac, ctx, multi)
+        mac = ctx.sign()
+        tsig = rdata.replace(time_signed=time, mac=mac)
+
+        return (tsig, self._maybe_start_digest(mac, multi))
+
+    @overload
+    def validate(
+        self,
+        wire: bytes,
+        owner: dns.name.Name,
+        rdata: TSIG,
+        now: int,
+        request_mac: bytes | bytearray,
+        tsig_start: int,
+        ctx: _C | None = None,
+        multi: Literal[False] = False,
+    ) -> None: ...
+    @overload
+    def validate(
+        self,
+        wire: bytes,
+        owner: dns.name.Name,
+        rdata: TSIG,
+        now: int,
+        request_mac: bytes | bytearray,
+        tsig_start: int,
+        ctx: _C | None,
+        multi: Literal[True],
+    ) -> _C: ...
+    @overload
+    def validate(
+        self,
+        wire: bytes,
+        owner: dns.name.Name,
+        rdata: TSIG,
+        now: int,
+        request_mac: bytes | bytearray,
+        tsig_start: int,
+        ctx: _C | None = None,
+        multi: bool = False,
+    ) -> _C | None: ...
+    def validate(
+        self,
+        wire: bytes,
+        owner: dns.name.Name,
+        rdata: TSIG,
+        now: int,
+        request_mac: bytes | bytearray,
+        tsig_start: int,
+        ctx: _C | None = None,
+        multi: bool = False,
+    ) -> _C | None:
+        """Validate the specified TSIG rdata against the other input parameters.
+
+        @raises FormError: The TSIG is badly formed.
+        @raises BadTime: There is too much time skew between the client and the
+        server.
+        @raises BadSignature: The TSIG signature did not validate
+        @rtype: dns.tsig.HMACTSig or dns.tsig.GSSTSig object"""
+
+        (adcount,) = struct.unpack("!H", wire[10:12])
+        if adcount == 0:
+            raise dns.exception.FormError
+        adcount -= 1
+        new_wire = wire[0:10] + struct.pack("!H", adcount) + wire[12:tsig_start]
+        if rdata.error != 0:
+            if rdata.error == dns.rcode.BADSIG:
+                raise PeerBadSignature
+            elif rdata.error == dns.rcode.BADKEY:
+                raise PeerBadKey
+            elif rdata.error == dns.rcode.BADTIME:
+                raise PeerBadTime
+            elif rdata.error == dns.rcode.BADTRUNC:
+                raise PeerBadTruncation
+            else:
+                raise PeerError(f"unknown TSIG error code {rdata.error}")
+        if abs(rdata.time_signed - now) > rdata.fudge:
+            raise BadTime
+        if self.name != owner:
+            raise BadKey
+        if self.algorithm != rdata.algorithm:
+            raise BadAlgorithm
+        ctx = self._digest(new_wire, rdata, None, request_mac, ctx, multi)
+        ctx.verify(rdata.mac)
+        return self._maybe_start_digest(rdata.mac, multi)
+
+def _(k: KeyBase[HMACTSig]):
+    _:KeyBase[AnyContext] = k
+
+
+class KeyHMAC(KeyBase[HMACTSig]):
+    _name: dns.name.Name
+    _secret: bytes
+    _algorithm: AlgorithmHMAC
+
+    __slots__ = ("_name", "_secret", "_algorithm")
+
+    def __init__(
+        self,
+        name: dns.name.Name | str,
+        secret: bytes | str,
+        algorithm: AlgorithmHMAC = default_algorithm,
+    ) -> None:
+        assert algorithm != Algorithm.GSS_TSIG
+        if isinstance(name, str):
+            name = dns.name.from_text(name)
+        self._name = name
+        if isinstance(secret, str):
+            secret = base64.decodebytes(secret.encode())
+        self._secret = secret
+        self._algorithm = algorithm
+
+    def _secret_repr(self) -> str:
+        return f"'{base64.b64encode(self.secret).decode()}'"
+
+    @property
+    def name(self) -> dns.name.Name:
+        return self._name
+
+    @property
+    def secret(self) -> bytes:
+        return self._secret
+
+    @property
+    def algorithm(self) -> AlgorithmHMAC:
+        return self._algorithm
+
+    def get_context(self) -> HMACTSig:
+        """Returns an HMAC context for the specified key.
+
+        @rtype: HMAC context
+        @raises NotImplementedError: I{algorithm} is not supported
+        """
+
+        return HMACTSig(self.secret, self.algorithm)
+
+    def is_hmac(self) -> bool:
+        return True
+
+
+class KeyGSS(KeyBase[GSSTSig]):
+    _name: dns.name.Name
+    _secret: SecurityContext
+
+    __slots__ = ("_name", "_secret")
+
+    def __init__(
+        self,
+        name: dns.name.Name | str,
+        secret: SecurityContext,
+        algorithm: AlgorithmGSS = Algorithm.GSS_TSIG,
+    ) -> None:
+        assert algorithm == Algorithm.GSS_TSIG
+        if isinstance(name, str):
+            name = dns.name.from_text(name)
+        self._name = name
+        self._secret = secret
+
+    def _secret_repr(self) -> str:
+        return repr(self.secret)
+
+    @property
+    def name(self) -> dns.name.Name:
+        return self._name
+
+    @property
+    def secret(self) -> SecurityContext:
+        return self._secret
+
+    @property
+    def algorithm(self) -> Literal[Algorithm.GSS_TSIG]:
+        return Algorithm.GSS_TSIG
+
+    def get_context(self) -> GSSTSig:
+        return GSSTSig(self.secret)
+
+    def is_hmac(self) -> bool:
+        return False
+
+
+Key = KeyHMAC | KeyGSS
+
+def is_hmac(key: Key) -> TypeIs[KeyHMAC]:
+    return key.is_hmac()
+
+def make_key(
+    name: dns.name.Name | str,
+    secret: str | bytes | SecurityContext,
+    algorithm: Algorithm | dns.name.Name | str,
+) -> KeyHMAC | KeyGSS:
+    algorithm = Algorithm(algorithm)
+    assert isinstance(secret, (str, bytes)) == (algorithm != Algorithm.GSS_TSIG)
+    if isinstance(secret, (str, bytes)):
+        return KeyHMAC(name, secret, cast(AlgorithmHMAC, algorithm))
+    else:
+        return KeyGSS(name, secret, cast(AlgorithmGSS, algorithm))

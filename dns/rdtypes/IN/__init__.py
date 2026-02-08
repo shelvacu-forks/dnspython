@@ -17,6 +17,23 @@
 
 """Class IN rdata type classes."""
 
+from . import (
+    A,
+    AAAA,
+    APL,
+    DHCID,
+    HTTPS,
+    IPSECKEY,
+    KX,
+    NAPTR,
+    NSAP,
+    NSAP_PTR,
+    PX,
+    SRV,
+    SVCB,
+    WKS,
+)
+
 __all__ = [
     "A",
     "AAAA",

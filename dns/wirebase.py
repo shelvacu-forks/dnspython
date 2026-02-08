@@ -5,6 +5,7 @@
 import contextlib
 import struct
 from collections.abc import Iterator
+from typing import Any
 
 import dns.exception
 
@@ -58,7 +59,7 @@ class Parser:
     def get_uint48(self) -> int:
         return int.from_bytes(self.get_bytes(6), "big")
 
-    def get_struct(self, format: str) -> tuple:
+    def get_struct(self, format: str) -> tuple[Any, ...]:
         return struct.unpack(format, self.get_bytes(struct.calcsize(format)))
 
     def seek(self, where: int) -> None:
@@ -69,7 +70,7 @@ class Parser:
         self.current = where
 
     @contextlib.contextmanager
-    def restrict_to(self, size: int) -> Iterator:
+    def restrict_to(self, size: int) -> Iterator[None]:
         assert size >= 0
         if size > self.remaining():
             raise dns.exception.FormError
@@ -86,7 +87,7 @@ class Parser:
             self.end = saved_end
 
     @contextlib.contextmanager
-    def restore_furthest(self) -> Iterator:
+    def restore_furthest(self) -> Iterator[None]:
         try:
             yield None
         finally:

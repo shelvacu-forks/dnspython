@@ -49,6 +49,9 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
     # ignore the mypy error here as we mean to use a different enum
     _section_enum = UpdateSection  # pyright: ignore
 
+    flags: int
+    rdclass: dns.rdataclass.RdataClass
+
     def __init__(
         self,
         zone: dns.name.Name | str | None = None,
@@ -75,9 +78,12 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         """
         super().__init__(id=id)
         self.flags |= dns.opcode.to_flags(dns.opcode.UPDATE)
+        zone_nonstr: dns.name.Name | None
         if isinstance(zone, str):
-            zone = dns.name.from_text(zone)
-        self.origin = zone
+            zone_nonstr = dns.name.from_text(zone)
+        else:
+            zone_nonstr = zone
+        self.origin = zone_nonstr
         rdclass = dns.rdataclass.RdataClass.make(rdclass)
         self.zone_rdclass = rdclass
         if self.origin:
@@ -98,7 +104,7 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         return self.sections[0]
 
     @zone.setter
-    def zone(self, v):
+    def zone(self, v: list[dns.rrset.RRset]) -> None:
         self.sections[0] = v
 
     @property
@@ -107,7 +113,7 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         return self.sections[1]
 
     @prerequisite.setter
-    def prerequisite(self, v):
+    def prerequisite(self, v: list[dns.rrset.RRset]):
         self.sections[1] = v
 
     @property
@@ -116,10 +122,17 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         return self.sections[2]
 
     @update.setter
-    def update(self, v):
+    def update(self, v: list[dns.rrset.RRset]):
         self.sections[2] = v
 
-    def _add_rr(self, name, ttl, rd, deleting=None, section=None):
+    def _add_rr(
+        self,
+        name: dns.name.Name,
+        ttl: int,
+        rd: dns.rdata.Rdata,
+        deleting: dns.rdataclass.RdataClass | None = None,
+        section: dns.message.SectionInt | None = None,
+    ) -> None:
         """Add a single RR to the update section."""
 
         if section is None:

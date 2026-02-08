@@ -3,7 +3,7 @@ import dns.rdatatype
 print("Rdatatypes")
 print("----------")
 print()
-by_name = {}
+by_name:dict[str, int] = {}
 for rdtype in dns.rdatatype.RdataType:
     short_name = dns.rdatatype.to_text(rdtype).replace("-", "_")
     by_name[short_name] = int(rdtype)

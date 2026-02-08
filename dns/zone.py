@@ -17,12 +17,13 @@
 
 """DNS Zones."""
 
+from __future__ import annotations
 import contextlib
 import io
 import os
 import struct
 from collections.abc import Callable, Iterable, Iterator, MutableMapping
-from typing import Any, BinaryIO, TextIO, cast
+from typing import Any, BinaryIO, TextIO, cast, ItemsView, KeysView, ValuesView, TypeGuard, IO, Never
 
 import dns.exception
 import dns.immutable
@@ -38,7 +39,7 @@ import dns.rrset
 import dns.tokenizer
 import dns.transaction
 import dns.zonefile
-from dns.zonetypes import DigestHashAlgorithm, DigestScheme, _digest_hashers
+from dns.zonetypes import DigestHashAlgorithm, DigestScheme, _digest_hashers # type: ignore[reportPrivateUsage]
 
 
 class BadZone(dns.exception.DNSException):
@@ -104,6 +105,9 @@ def _validate_name(
             name = abs_name
     return name
 
+type _Keyout = dns.name.Name
+type _Keyin = dns.name.Name | str
+_Value = dns.node.Node
 
 class Zone(dns.transaction.TransactionManager):
     """A DNS zone.
@@ -116,14 +120,18 @@ class Zone(dns.transaction.TransactionManager):
     the zone.
     """
 
-    node_factory: Callable[[], dns.node.Node] = dns.node.Node
-    map_factory: Callable[[], MutableMapping[dns.name.Name, dns.node.Node]] = dict
+    node_factory: Callable[[], _Value] = _Value
+    map_factory: Callable[[], MutableMapping[_Keyout, _Value]] = dict
     # We only require the version types as "Version" to allow for flexibility, as
     # only the version protocol matters
     writable_version_factory: Callable[["Zone", bool], "Version"] | None = None
     immutable_version_factory: Callable[["Version"], "Version"] | None = None
 
     __slots__ = ["rdclass", "origin", "nodes", "relativize"]
+    origin: dns.name.Name | None
+    rdclass: dns.rdataclass.RdataClass
+    nodes: MutableMapping[_Keyout, _Value]
+    relativize: bool
 
     def __init__(
         self,
@@ -155,24 +163,16 @@ class Zone(dns.transaction.TransactionManager):
         self.nodes: MutableMapping[dns.name.Name, dns.node.Node] = self.map_factory()
         self.relativize = relativize
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> TypeGuard[Zone]:
         """Two zones are equal if they have the same origin, class, and
         nodes.
 
         Returns a ``bool``.
         """
 
-        if not isinstance(other, Zone):
-            return False
-        if (
-            self.rdclass != other.rdclass
-            or self.origin != other.origin
-            or self.nodes != other.nodes
-        ):
-            return False
-        return True
+        return isinstance(other, Zone) and self.rdclass == other.rdclass and self.origin == other.origin and self.nodes == other.nodes
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         """Are two zones not equal?
 
         Returns a ``bool``.
@@ -180,7 +180,7 @@ class Zone(dns.transaction.TransactionManager):
 
         return not self.__eq__(other)
 
-    def _validate_name(self, name: dns.name.Name | str) -> dns.name.Name:
+    def _validate_name(self, name: _Keyin) -> _Keyout:
         # Note that any changes in this method should have corresponding changes
         # made in the Version _validate_name() method.
         if isinstance(name, str):
@@ -189,41 +189,41 @@ class Zone(dns.transaction.TransactionManager):
             raise KeyError("name parameter must be convertible to a DNS name")
         return _validate_name(name, self.origin, self.relativize)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: _Keyin) -> _Value:
         key = self._validate_name(key)
         return self.nodes[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: _Keyin, value: _Value) -> None:
         key = self._validate_name(key)
         self.nodes[key] = value
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: _Keyin) -> None:
         key = self._validate_name(key)
         del self.nodes[key]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[_Keyout]:
         return self.nodes.__iter__()
 
-    def keys(self):
+    def keys(self) -> KeysView[_Keyout]:
         return self.nodes.keys()
 
-    def values(self):
+    def values(self) -> ValuesView[_Value]:
         return self.nodes.values()
 
-    def items(self):
+    def items(self) -> ItemsView[_Keyout, _Value]:
         return self.nodes.items()
 
-    def get(self, key):
+    def get(self, key: _Keyin) -> _Value | None:
         key = self._validate_name(key)
         return self.nodes.get(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: _Keyin) -> bool:
         key = self._validate_name(key)
         return key in self.nodes
 
     def find_node(
-        self, name: dns.name.Name | str, create: bool = False
-    ) -> dns.node.Node:
+        self, name: _Keyin, create: bool = False
+    ) -> _Value:
         """Find a node in the zone, possibly creating it.
 
         *name*: the name of the node to find.
@@ -250,8 +250,8 @@ class Zone(dns.transaction.TransactionManager):
         return node
 
     def get_node(
-        self, name: dns.name.Name | str, create: bool = False
-    ) -> dns.node.Node | None:
+        self, name: _Keyin, create: bool = False
+    ) -> _Value | None:
         """Get a node in the zone, possibly creating it.
 
         This method is like ``find_node()``, except it returns None instead
@@ -275,7 +275,7 @@ class Zone(dns.transaction.TransactionManager):
             node = None
         return node
 
-    def delete_node(self, name: dns.name.Name | str) -> None:
+    def delete_node(self, name: _Keyin) -> None:
         """Delete the specified node if it exists.
 
         *name*: the name of the node to find.
@@ -292,7 +292,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def find_rdataset(
         self,
-        name: dns.name.Name | str,
+        name: _Keyin,
         rdtype: dns.rdatatype.RdataType | str,
         covers: dns.rdatatype.RdataType | str = dns.rdatatype.NONE,
         create: bool = False,
@@ -339,7 +339,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def get_rdataset(
         self,
-        name: dns.name.Name | str,
+        name: _Keyin,
         rdtype: dns.rdatatype.RdataType | str,
         covers: dns.rdatatype.RdataType | str = dns.rdatatype.NONE,
         create: bool = False,
@@ -387,7 +387,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def delete_rdataset(
         self,
-        name: dns.name.Name | str,
+        name: _Keyin,
         rdtype: dns.rdatatype.RdataType | str,
         covers: dns.rdatatype.RdataType | str = dns.rdatatype.NONE,
     ) -> None:
@@ -424,7 +424,7 @@ class Zone(dns.transaction.TransactionManager):
                 self.delete_node(name)
 
     def replace_rdataset(
-        self, name: dns.name.Name | str, replacement: dns.rdataset.Rdataset
+        self, name: _Keyin, replacement: dns.rdataset.Rdataset
     ) -> None:
         """Replace an rdataset at name.
 
@@ -451,7 +451,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def find_rrset(
         self,
-        name: dns.name.Name | str,
+        name: _Keyin,
         rdtype: dns.rdatatype.RdataType | str,
         covers: dns.rdatatype.RdataType | str = dns.rdatatype.NONE,
     ) -> dns.rrset.RRset:
@@ -503,7 +503,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def get_rrset(
         self,
-        name: dns.name.Name | str,
+        name: _Keyin,
         rdtype: dns.rdatatype.RdataType | str,
         covers: dns.rdatatype.RdataType | str = dns.rdatatype.NONE,
     ) -> dns.rrset.RRset | None:
@@ -614,7 +614,7 @@ class Zone(dns.transaction.TransactionManager):
 
     def to_file(
         self,
-        f: Any,
+        f: str|IO[str]|IO[bytes],
         sorted: bool = True,
         relativize: bool = True,
         nl: str | bytes | None = None,
@@ -649,7 +649,7 @@ class Zone(dns.transaction.TransactionManager):
         """
 
         if isinstance(f, str):
-            cm: contextlib.AbstractContextManager = open(f, "wb")
+            cm: contextlib.AbstractContextManager[IO[str]|IO[bytes]] = open(f, "wb")
         else:
             cm = contextlib.nullcontext(f)
         with cm as output:
@@ -675,11 +675,11 @@ class Zone(dns.transaction.TransactionManager):
                 assert self.origin is not None
                 l = "$ORIGIN " + self.origin.to_text()
                 l_b = l.encode(file_enc)
-                try:
+                if 'b' in output.mode:
                     bout = cast(BinaryIO, output)
                     bout.write(l_b)
                     bout.write(nl_b)
-                except TypeError:  # textual mode
+                else:  # textual mode
                     tout = cast(TextIO, output)
                     tout.write(l)
                     tout.write(nl)
@@ -697,11 +697,11 @@ class Zone(dns.transaction.TransactionManager):
                     want_comments=want_comments,  # pyright: ignore
                 )
                 l_b = l.encode(file_enc)
-                try:
+                if 'b' in output.mode:
                     bout = cast(BinaryIO, output)
                     bout.write(l_b)
                     bout.write(nl_b)
-                except TypeError:  # textual mode
+                else:  # textual mode
                     tout = cast(TextIO, output)
                     tout.write(l)
                     tout.write(nl)
@@ -850,11 +850,12 @@ class Zone(dns.transaction.TransactionManager):
                 raise NoDigest
             digests = rds
         for digest in digests:
-            try:
+            # digest = cast(dns.rdtypes.ANY.ZONEMD.ZONEMD, digest_)
+            if isinstance(digest, dns.rdtypes.ANY.ZONEMD.ZONEMD):
                 computed = self._compute_digest(digest.hash_algorithm, digest.scheme)
                 if computed == digest.digest:
                     return
-            except Exception:
+            else:
                 pass
         raise DigestVerificationFailure
 
@@ -883,13 +884,13 @@ class Zone(dns.transaction.TransactionManager):
 
     # Transaction methods
 
-    def _end_read(self, txn):
+    def _end_read(self, txn: Any) -> None:
         pass
 
-    def _end_write(self, txn):
+    def _end_write(self, txn: Any) -> None:
         pass
 
-    def _commit_version(self, txn, version, origin):
+    def _commit_version(self, txn: Any, version: Version, origin: dns.name.Name | None):
         self.nodes = version.nodes
         if self.origin is None:
             self.origin = origin
@@ -909,6 +910,7 @@ class Zone(dns.transaction.TransactionManager):
 
 class VersionedNode(dns.node.Node):  # lgtm[py/missing-equals]
     __slots__ = ["id"]
+    id: int
 
     def __init__(self):
         super().__init__()
@@ -918,12 +920,14 @@ class VersionedNode(dns.node.Node):  # lgtm[py/missing-equals]
 
 @dns.immutable.immutable
 class ImmutableVersionedNode(VersionedNode):
-    def __init__(self, node):
+    rdatasets:tuple[dns.rdataset.ImmutableRdataset, ...]
+    def __init__(self, node: VersionedNode):
         super().__init__()
         self.id = node.id
-        self.rdatasets = tuple(
-            [dns.rdataset.ImmutableRdataset(rds) for rds in node.rdatasets]
+        rdatasets = tuple(
+            dns.rdataset.ImmutableRdataset(rds) for rds in node.rdatasets
         )
+        self.rdatasets = rdatasets # type: ignore
 
     def find_rdataset(
         self,
@@ -952,10 +956,10 @@ class ImmutableVersionedNode(VersionedNode):
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
         covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
-    ) -> None:
+    ) -> Never:
         raise TypeError("immutable")
 
-    def replace_rdataset(self, replacement: dns.rdataset.Rdataset) -> None:
+    def replace_rdataset(self, replacement: dns.rdataset.Rdataset) -> Never:
         raise TypeError("immutable")
 
     def is_immutable(self) -> bool:
@@ -963,6 +967,10 @@ class ImmutableVersionedNode(VersionedNode):
 
 
 class Version:
+    zone: Zone
+    id: int
+    nodes: MutableMapping[dns.name.Name, dns.node.Node]
+    origin: dns.name.Name | None
     def __init__(
         self,
         zone: Zone,
@@ -1004,6 +1012,7 @@ class Version:
 
 
 class WritableVersion(Version):
+    changed: set[dns.name.Name]
     def __init__(self, zone: Zone, replacement: bool = False):
         # The zone._versions_lock must be held by our caller in a versioned
         # zone.
@@ -1073,6 +1082,7 @@ class WritableVersion(Version):
 
 @dns.immutable.immutable
 class ImmutableVersion(Version):
+    nodes: dns.immutable.Dict[dns.name.Name, dns.node.Node]
     def __init__(self, version: Version):
         if not isinstance(version, WritableVersion):
             raise ValueError(
@@ -1090,16 +1100,21 @@ class ImmutableVersion(Version):
         for name in version.changed:
             node = version.nodes.get(name)
             # it might not exist if we deleted it in the version
-            if node:
+            if node is not None:
+                assert isinstance(node, VersionedNode)
                 version.nodes[name] = ImmutableVersionedNode(node)
         # We're changing the type of the nodes dictionary here on purpose, so
         # we ignore the mypy error.
-        self.nodes = dns.immutable.Dict(
-            version.nodes, True, self.zone.map_factory
-        )  # pyright: ignore
+        nodes = dns.immutable.Dict(
+            version.nodes, True
+        )
+        self.nodes = nodes # type: ignore[reportIncompatibleVariableOverride]
 
 
 class Transaction(dns.transaction.Transaction):
+    version: Version|None
+    make_immutable: bool
+
     def __init__(
         self,
         zone: Zone,
@@ -1116,40 +1131,54 @@ class Transaction(dns.transaction.Transaction):
     def zone(self) -> Zone:
         return cast(Zone, self.manager)
 
-    def _setup_version(self):
+    def _setup_version(self) -> None:
         assert self.version is None
         factory = self.manager.writable_version_factory  # type: ignore
         if factory is None:
             factory = WritableVersion
         self.version = factory(self.zone, self.replacement)  # pyright: ignore
 
-    def _get_rdataset(self, name, rdtype, covers):
+    def _get_rdataset(
+            self,
+            name: dns.name.Name,
+            rdtype: dns.rdatatype.RdataType,
+            covers: dns.rdatatype.RdataType,
+        ) -> dns.rdataset.Rdataset | None:
         assert self.version is not None
         return self.version.get_rdataset(name, rdtype, covers)
 
-    def _put_rdataset(self, name, rdataset):
+    def _put_rdataset(
+            self,
+            name: dns.name.Name,
+            rdataset: dns.rdataset.Rdataset,
+        ) -> None:
         assert not self.read_only
         assert self.version is not None
         version = cast(WritableVersion, self.version)
         version.put_rdataset(name, rdataset)
 
-    def _delete_name(self, name):
+    def _delete_name(self, name: dns.name.Name) -> None:
         assert not self.read_only
         assert self.version is not None
         version = cast(WritableVersion, self.version)
         version.delete_node(name)
 
-    def _delete_rdataset(self, name, rdtype, covers):
+    def _delete_rdataset(
+            self,
+            name: dns.name.Name,
+            rdtype: dns.rdatatype.RdataType,
+            covers: dns.rdatatype.RdataType,
+        ) -> None:
         assert not self.read_only
         assert self.version is not None
         version = cast(WritableVersion, self.version)
         version.delete_rdataset(name, rdtype, covers)
 
-    def _name_exists(self, name):
+    def _name_exists(self, name: dns.name.Name) -> bool:
         assert self.version is not None
         return self.version.get_node(name) is not None
 
-    def _changed(self):
+    def _changed(self) -> bool:
         if self.read_only:
             return False
         else:
@@ -1157,20 +1186,22 @@ class Transaction(dns.transaction.Transaction):
             version = cast(WritableVersion, self.version)
             return len(version.changed) > 0
 
-    def _end_transaction(self, commit):
+    def _end_transaction(self, commit:bool) -> None:
         assert self.zone is not None
         assert self.version is not None
         if self.read_only:
             self.zone._end_read(self)  # pyright: ignore
         elif commit and len(cast(WritableVersion, self.version).changed) > 0:
+            version: Version
             if self.make_immutable:
-                factory = self.manager.immutable_version_factory  # type: ignore
+                assert isinstance(self.manager, Zone)
+                factory = self.manager.immutable_version_factory
                 if factory is None:
                     factory = ImmutableVersion
                 version = factory(self.version)
             else:
                 version = self.version
-            self.zone._commit_version(  # pyright: ignore
+            self.zone._commit_version(
                 self, version, self.version.origin
             )
 
@@ -1178,22 +1209,22 @@ class Transaction(dns.transaction.Transaction):
             # rollback
             self.zone._end_write(self)  # pyright: ignore
 
-    def _set_origin(self, origin):
+    def _set_origin(self, origin: dns.name.Name | None) -> None:
         assert self.version is not None
         if self.version.origin is None:
             self.version.origin = origin
 
-    def _iterate_rdatasets(self):
+    def _iterate_rdatasets(self) -> Iterator[tuple[dns.name.Name, dns.rdataset.Rdataset]]:
         assert self.version is not None
         for name, node in self.version.items():
             for rdataset in node:
                 yield (name, rdataset)
 
-    def _iterate_names(self):
+    def _iterate_names(self) -> Iterable[dns.name.Name]:
         assert self.version is not None
         return self.version.keys()
 
-    def _get_node(self, name):
+    def _get_node(self, name: dns.name.Name) -> dns.node.Node | None:
         assert self.version is not None
         return self.version.get_node(name)
 
@@ -1215,7 +1246,7 @@ class Transaction(dns.transaction.Transaction):
 
 def _from_text(
     text: Any,
-    origin: dns.name.Name | str | None = None,
+    origin: _Keyin | None = None,
     rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
     relativize: bool = True,
     zone_factory: Any = Zone,
@@ -1257,7 +1288,7 @@ def _from_text(
 
 def from_text(
     text: str,
-    origin: dns.name.Name | str | None = None,
+    origin: _Keyin | None = None,
     rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
     relativize: bool = True,
     zone_factory: Any = Zone,
@@ -1330,8 +1361,8 @@ def from_text(
 
 
 def from_file(
-    f: Any,
-    origin: dns.name.Name | str | None = None,
+    f: IO[bytes]|IO[str]|str,
+    origin: _Keyin | None = None,
     rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
     relativize: bool = True,
     zone_factory: Any = Zone,
@@ -1393,7 +1424,7 @@ def from_file(
     if isinstance(f, str):
         if filename is None:
             filename = f
-        cm: contextlib.AbstractContextManager = open(f, encoding="utf-8")
+        cm: contextlib.AbstractContextManager[IO[bytes]|IO[str]] = open(f, encoding="utf-8")
     else:
         cm = contextlib.nullcontext(f)
     with cm as f:

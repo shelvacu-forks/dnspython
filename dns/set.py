@@ -16,9 +16,11 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import itertools
+from collections.abc import MutableMapping
+from typing import Iterator, Iterable, Self, Any, overload
 
 
-class Set:
+class Set[T]:
     """A simple set class.
 
     This class was originally used to deal with python not having a set class, and
@@ -29,8 +31,9 @@ class Set:
     """
 
     __slots__ = ["items"]
+    items:MutableMapping[T, None]
 
-    def __init__(self, items=None):
+    def __init__(self, items:Iterable[T]|None=None):
         """Initialize the set.
 
         *items*, an iterable or ``None``, the initial set of items.
@@ -43,16 +46,16 @@ class Set:
                 # subclasses it could be a legitimate issue.
                 self.add(item)  # lgtm[py/init-calls-subclass]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"dns.set.Set({repr(list(self.items.keys()))})"  # pragma: no cover
 
-    def add(self, item):
+    def add(self, item: T) -> None:
         """Add an item to the set."""
 
         if item not in self.items:
             self.items[item] = None
 
-    def remove(self, item):
+    def remove(self, item: T) -> None:
         """Remove an item from the set."""
 
         try:
@@ -60,17 +63,17 @@ class Set:
         except KeyError:
             raise ValueError
 
-    def discard(self, item):
+    def discard(self, item: T) -> None:
         """Remove an item from the set if present."""
 
         self.items.pop(item, None)
 
-    def pop(self):
+    def pop(self) -> T:
         """Remove an arbitrary item from the set."""
         k, _ = self.items.popitem()
         return k
 
-    def _clone(self) -> "Set":
+    def _clone(self) -> Self:
         """Make a (shallow) copy of the set.
 
         There is a 'clone protocol' that subclasses of this class
@@ -87,22 +90,22 @@ class Set:
             cls = self._clone_class  # pyright: ignore
         else:
             cls = self.__class__
-        obj = cls.__new__(cls)
+        obj = cls.__new__(cls) # type: ignore
         obj.items = dict()
         obj.items.update(self.items)
-        return obj
+        return obj # type: ignore
 
-    def __copy__(self):
+    def __copy__(self) -> Self:
         """Make a (shallow) copy of the set."""
 
         return self._clone()
 
-    def copy(self):
+    def copy(self) -> Self:
         """Make a (shallow) copy of the set."""
 
         return self._clone()
 
-    def union_update(self, other):
+    def union_update(self, other: "Set[T]") -> None:
         """Update the set, adding any elements from other which are not
         already in the set.
         """
@@ -114,7 +117,7 @@ class Set:
         for item in other.items:
             self.add(item)
 
-    def intersection_update(self, other):
+    def intersection_update(self, other: "Set[T]") -> None:
         """Update the set, removing any elements from other which are not
         in both sets.
         """
@@ -129,7 +132,7 @@ class Set:
             if item not in other.items:
                 del self.items[item]
 
-    def difference_update(self, other):
+    def difference_update(self, other: "Set[T]") -> None:
         """Update the set, removing any elements from other which are in
         the set.
         """
@@ -142,7 +145,7 @@ class Set:
             for item in other.items:
                 self.discard(item)
 
-    def symmetric_difference_update(self, other):
+    def symmetric_difference_update(self, other: "Set[T]") -> None:
         """Update the set, retaining only elements unique to both sets."""
 
         if not isinstance(other, Set):
@@ -154,7 +157,7 @@ class Set:
             self.union_update(other)
             self.difference_update(overlap)
 
-    def union(self, other):
+    def union(self, other: "Set[T]") -> Self:
         """Return a new set which is the union of ``self`` and ``other``.
 
         Returns the same Set type as this set.
@@ -164,7 +167,7 @@ class Set:
         obj.union_update(other)
         return obj
 
-    def intersection(self, other):
+    def intersection(self, other: "Set[T]") -> Self:
         """Return a new set which is the intersection of ``self`` and
         ``other``.
 
@@ -175,7 +178,7 @@ class Set:
         obj.intersection_update(other)
         return obj
 
-    def difference(self, other):
+    def difference(self, other: "Set[T]") -> Self:
         """Return a new set which ``self`` - ``other``, i.e. the items
         in ``self`` which are not also in ``other``.
 
@@ -186,7 +189,7 @@ class Set:
         obj.difference_update(other)
         return obj
 
-    def symmetric_difference(self, other):
+    def symmetric_difference(self, other: "Set[T]") -> Self:
         """Return a new set which (``self`` - ``other``) | (``other``
         - ``self), ie: the items in either ``self`` or ``other`` which
         are not contained in their intersection.
@@ -198,42 +201,42 @@ class Set:
         obj.symmetric_difference_update(other)
         return obj
 
-    def __or__(self, other):
+    def __or__(self, other: "Set[T]") -> Self:
         return self.union(other)
 
-    def __and__(self, other):
+    def __and__(self, other: "Set[T]") -> Self:
         return self.intersection(other)
 
-    def __add__(self, other):
+    def __add__(self, other: "Set[T]") -> Self:
         return self.union(other)
 
-    def __sub__(self, other):
+    def __sub__(self, other: "Set[T]") -> Self:
         return self.difference(other)
 
-    def __xor__(self, other):
+    def __xor__(self, other: "Set[T]") -> Self:
         return self.symmetric_difference(other)
 
-    def __ior__(self, other):
+    def __ior__(self, other: "Set[T]") -> Self:
         self.union_update(other)
         return self
 
-    def __iand__(self, other):
+    def __iand__(self, other: "Set[T]") -> Self:
         self.intersection_update(other)
         return self
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: "Set[T]") -> Self:
         self.union_update(other)
         return self
 
-    def __isub__(self, other):
+    def __isub__(self, other: "Set[T]") -> Self:
         self.difference_update(other)
         return self
 
-    def __ixor__(self, other):
+    def __ixor__(self, other: "Set[T]") -> Self:
         self.symmetric_difference_update(other)
         return self
 
-    def update(self, other):
+    def update(self, other: "Set[T]") -> None:
         """Update the set, adding any elements from other which are not
         already in the set.
 
@@ -244,36 +247,42 @@ class Set:
         for item in other:
             self.add(item)
 
-    def clear(self):
+    def clear(self) -> None:
         """Make the set empty."""
         self.items.clear()
 
-    def __eq__(self, other):
-        return self.items == other.items
+    def __eq__(self, other:Any) -> bool:
+        if not isinstance(other, Set):
+            return False
+        return self.items == other.items # type: ignore
 
-    def __ne__(self, other):
+    def __ne__(self, other:Any) -> bool:
         return not self.__eq__(other)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.items)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[T]:
         return iter(self.items)
 
-    def __getitem__(self, i):
+    @overload
+    def __getitem__(self, i:int) -> T: ...
+    @overload
+    def __getitem__(self, i:slice[int]) -> Iterable[T]: ...
+    def __getitem__(self, i:slice[int]|int) -> T|Iterable[T]:
         if isinstance(i, slice):
             return list(itertools.islice(self.items, i.start, i.stop, i.step))
         else:
             return next(itertools.islice(self.items, i, i + 1))
 
-    def __delitem__(self, i):
+    def __delitem__(self, i:int|slice[int]) -> None:
         if isinstance(i, slice):
             for elt in list(self[i]):
                 del self.items[elt]
         else:
             del self.items[self[i]]
 
-    def issubset(self, other):
+    def issubset(self, other: "Set[T]") -> bool:
         """Is this set a subset of *other*?
 
         Returns a ``bool``.
@@ -286,7 +295,7 @@ class Set:
                 return False
         return True
 
-    def issuperset(self, other):
+    def issuperset(self, other: "Set[T]") -> bool:
         """Is this set a superset of *other*?
 
         Returns a ``bool``.
@@ -299,7 +308,7 @@ class Set:
                 return False
         return True
 
-    def isdisjoint(self, other):
+    def isdisjoint(self, other: "Set[T]") -> bool:
         if not isinstance(other, Set):
             raise ValueError("other must be a Set instance")
         for item in other.items:

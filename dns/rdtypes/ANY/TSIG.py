@@ -17,11 +17,14 @@
 
 import base64
 import struct
+from typing import Any, IO
 
-import dns.exception
 import dns.immutable
 import dns.rcode
 import dns.rdata
+import dns.rdataclass
+import dns.rdatatype
+import dns.tsig
 
 
 @dns.immutable.immutable
@@ -37,18 +40,25 @@ class TSIG(dns.rdata.Rdata):
         "error",
         "other",
     ]
+    algorithm: dns.tsig.Algorithm
+    time_signed: int
+    fudge: int
+    mac: bytes
+    original_id: int
+    error: dns.rcode.Rcode
+    other: bytes
 
     def __init__(
         self,
-        rdclass,
-        rdtype,
-        algorithm,
-        time_signed,
-        fudge,
-        mac,
-        original_id,
-        error,
-        other,
+        rdclass: dns.rdataclass.RdataClass | int,
+        rdtype: dns.rdatatype.RdataType | int,
+        algorithm: dns.tsig.ToAlgorithm,
+        time_signed: int,
+        fudge: int,
+        mac: bytearray | bytes,
+        original_id: int,
+        error: dns.rcode.Rcode | int,
+        other: bytearray | bytes,
     ):
         """Initialize a TSIG rdata.
 
@@ -56,7 +66,7 @@ class TSIG(dns.rdata.Rdata):
 
         *rdtype*, an ``int`` is the rdatatype of the Rdata.
 
-        *algorithm*, a ``dns.name.Name``.
+        *algorithm*, a ``dns.tsig.Algorithm``.
 
         *time_signed*, an ``int``.
 
@@ -72,7 +82,7 @@ class TSIG(dns.rdata.Rdata):
         """
 
         super().__init__(rdclass, rdtype)
-        self.algorithm = self._as_name(algorithm)
+        self.algorithm = dns.tsig.Algorithm(algorithm)
         self.time_signed = self._as_uint48(time_signed)
         self.fudge = self._as_uint16(fudge)
         self.mac = self._as_bytes(mac)
@@ -80,8 +90,8 @@ class TSIG(dns.rdata.Rdata):
         self.error = dns.rcode.Rcode.make(error)
         self.other = self._as_bytes(other)
 
-    def to_text(self, origin=None, relativize=True, **kw):
-        algorithm = self.algorithm.choose_relativity(origin, relativize)
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any):
+        algorithm = self.algorithm.value.choose_relativity(origin, relativize)
         error = dns.rcode.to_text(self.error, True)
         text = (
             f"{algorithm} {self.time_signed} {self.fudge} "
@@ -94,7 +104,13 @@ class TSIG(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass, rdtype, tok, origin=None, relativize=True, relativize_to=None
+        cls,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        tok: dns.tokenizer.Tokenizer,
+        origin: dns.name.Name | None = None,
+        relativize: bool = True,
+        relativize_to: dns.name.Name | None = None,
     ):
         algorithm = tok.get_name(relativize=False)
         time_signed = tok.get_uint48()
@@ -124,7 +140,13 @@ class TSIG(dns.rdata.Rdata):
             other,
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(
+        self,
+        file: IO[bytes],
+        compress: dns.name.CompressType | None = None,
+        origin: dns.name.Name | None = None,
+        canonicalize: bool = False,
+    ) -> None:
         self.algorithm.to_wire(file, None, origin, False)
         file.write(
             struct.pack(
@@ -140,7 +162,13 @@ class TSIG(dns.rdata.Rdata):
         file.write(self.other)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(
+        cls,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        parser: dns.wire.Parser,
+        origin: dns.name.Name | None = None,
+    ) -> "TSIG":
         algorithm = parser.get_name()
         time_signed = parser.get_uint48()
         fudge = parser.get_uint16()

@@ -18,7 +18,7 @@
 """DNS RRsets (an RRset is a named rdataset)"""
 
 from collections.abc import Collection
-from typing import Any, cast
+from typing import Any, cast, IO
 
 import dns.name
 import dns.rdata
@@ -38,10 +38,12 @@ class RRset(dns.rdataset.Rdataset):
     """
 
     __slots__ = ["name", "deleting"]
+    name: dns.name.Name | None
+    deleting: dns.rdataclass.RdataClass | None
 
     def __init__(
         self,
-        name: dns.name.Name,
+        name: dns.name.Name | None,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
         covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
@@ -59,7 +61,7 @@ class RRset(dns.rdataset.Rdataset):
         obj.deleting = self.deleting
         return obj
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.covers == 0:
             ctext = ""
         else:
@@ -82,10 +84,10 @@ class RRset(dns.rdataset.Rdataset):
             + ">"
         )
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.to_text()
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if isinstance(other, RRset):
             if self.name != other.name:
                 return False
@@ -127,13 +129,16 @@ class RRset(dns.rdataset.Rdataset):
             return False
         return True
 
-    # pylint: disable=arguments-differ
-
-    def to_text(  # type: ignore
+    def to_text(
         self,
+        *,
+        name: dns.name.Name | None = None,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
-        **kw: dict[str, Any],
+        override_rdclass: dns.rdataclass.RdataClass | None = None,
+        want_comments: bool = False,
+        chunksize: int = dns.rdata._chunksize,
+        separator: bytes = b" ",
     ) -> str:
         """Convert the RRset into DNS zone file format.
 
@@ -151,16 +156,24 @@ class RRset(dns.rdataset.Rdataset):
         to *origin*.
         """
 
+        if name is None:
+            name = self.name
+        if override_rdclass is None:
+            override_rdclass = self.deleting
+
         return super().to_text(
-            self.name, origin, relativize, self.deleting, **kw  # type: ignore
+            name=name, origin=origin, relativize=relativize, override_rdclass=override_rdclass, want_comments=want_comments, chunksize=chunksize, separator=separator
         )
 
-    def to_wire(  # type: ignore
+    def to_wire(
         self,
-        file: Any,
+        *,
+        name: dns.name.Name | None = None,
+        file: IO[bytes],
         compress: dns.name.CompressType | None = None,
         origin: dns.name.Name | None = None,
-        **kw: dict[str, Any],
+        override_rdclass: dns.rdataclass.RdataClass | None = None,
+        want_shuffle: bool = True,
     ) -> int:
         """Convert the RRset to wire format.
 
@@ -170,8 +183,19 @@ class RRset(dns.rdataset.Rdataset):
         Returns an ``int``, the number of records emitted.
         """
 
+        if name is None:
+            assert self.name is not None
+            name = self.name
+        if override_rdclass is None:
+            override_rdclass = self.deleting
+
         return super().to_wire(
-            self.name, file, compress, origin, self.deleting, **kw  # type: ignore
+            name=name,
+            file=file,
+            compress=compress,
+            origin=origin,
+            override_rdclass=override_rdclass,
+            want_shuffle=want_shuffle,
         )
 
     # pylint: enable=arguments-differ
@@ -185,7 +209,7 @@ class RRset(dns.rdataset.Rdataset):
 
 
 def from_text_list(
-    name: dns.name.Name | str,
+    name: dns.name.Name | str | None,
     ttl: int,
     rdclass: dns.rdataclass.RdataClass | str,
     rdtype: dns.rdatatype.RdataType | str,
@@ -228,7 +252,7 @@ def from_text_list(
 
 
 def from_text(
-    name: dns.name.Name | str,
+    name: dns.name.Name | str | None,
     ttl: int,
     rdclass: dns.rdataclass.RdataClass | str,
     rdtype: dns.rdatatype.RdataType | str,
@@ -246,7 +270,7 @@ def from_text(
 
 
 def from_rdata_list(
-    name: dns.name.Name | str,
+    name: dns.name.Name | str | None,
     ttl: int,
     rdatas: Collection[dns.rdata.Rdata],
     idna_codec: dns.name.IDNACodec | None = None,
@@ -277,7 +301,7 @@ def from_rdata_list(
     return r
 
 
-def from_rdata(name: dns.name.Name | str, ttl: int, *rdatas: Any) -> RRset:
+def from_rdata(name: dns.name.Name | str | None, ttl: int, *rdatas: Any) -> RRset:
     """Create an RRset with the specified name and TTL, and with
     the specified rdata objects.
 

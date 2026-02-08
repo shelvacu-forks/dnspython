@@ -17,6 +17,8 @@
 
 """Class CH rdata type classes."""
 
+from . import A
+
 __all__ = [
     "A",
 ]

@@ -1,10 +1,11 @@
 import contextlib
+import typing
 
 import dns.exception
 
 
 @contextlib.contextmanager
-def prefixed_length(output, length_length):
+def prefixed_length(output: typing.IO[bytes], length_length: int) -> typing.Iterator[None]:
     output.write(b"\00" * length_length)
     start = output.tell()
     yield

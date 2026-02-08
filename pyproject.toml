@@ -110,5 +110,7 @@ lint.exclude = ["tests/*"]
 profile = "black"
 
 [tool.pyright]
-reportUnsupportedDunderAll = false
 exclude = ["dns/win32util.py", "examples/*.py", "tests/*.py"]
+typeCheckingMode = "strict"
+reportUnnecessaryIsInstance = false
+reportPrivateUsage = false
