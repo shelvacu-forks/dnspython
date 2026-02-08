@@ -100,6 +100,9 @@ class Algorithm(enum.Enum):
 
 type ToAlgorithm = str | dns.name.Name | Algorithm
 
+def to_algorithm(obj: ToAlgorithm) -> Algorithm:
+    return Algorithm(obj)
+
 HMAC_MD5 = Algorithm.HMAC_MD5 
 HMAC_SHA1 = Algorithm.HMAC_SHA1 
 HMAC_SHA224 = Algorithm.HMAC_SHA224 

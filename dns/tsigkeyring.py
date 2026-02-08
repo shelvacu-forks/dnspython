@@ -32,13 +32,24 @@ type Keyring = dict[dns.name.Name, dns.tsig.Key | bytes]
 
 type KeyringLike = dns.tsigkeyring.Keyring | dns.tsig.Key | Callable[[dns.message.Message, dns.name.Name], dns.tsig.Key] | None | typing.Literal[True]
 
-def get_key(keyring: KeyringLike, keyname: dns.name.Name, message: dns.message.Message, default_algorithm: dns.tsig.AlgorithmHMAC) -> dns.tsig.Key | None:
+def get_key(keyring: KeyringLike, keyname: dns.name.Name | str | None, message: dns.message.Message, default_algorithm: dns.tsig.AlgorithmHMAC) -> dns.tsig.Key | None:
+    if isinstance(keyname, str):
+        keyname = dns.name.from_text(keyname)
     if keyring is None or keyring is True:
         return None
     if callable(keyring):
+        if keyname is None:
+            return None
         return keyring(message, keyname)
     if isinstance(keyring, dict):
-        v = keyring.get(keyname)
+        if keyname is None:
+            try:
+                item = next(iter(keyring.items()))
+            except StopIteration:
+                return None
+            keyname, v = item
+        else:
+            v = keyring.get(keyname)
         if isinstance(v, bytes):
             return dns.tsig.KeyHMAC(keyname, v, default_algorithm)
         else:

@@ -17,7 +17,7 @@
 
 """DNS Dynamic Update Support"""
 
-from typing import Any
+from typing import Any, overload, Literal, cast
 
 import dns.enum
 import dns.exception
@@ -30,6 +30,7 @@ import dns.rdataset
 import dns.rdatatype
 import dns.rrset
 import dns.tsig
+import dns.tsigkeyring
 
 
 class UpdateSection(dns.enum.IntEnum):
@@ -56,9 +57,9 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         self,
         zone: dns.name.Name | str | None = None,
         rdclass: dns.rdataclass.RdataClass = dns.rdataclass.IN,
-        keyring: Any | None = None,
+        keyring: dns.tsigkeyring.KeyringLike = None,
         keyname: dns.name.Name | None = None,
-        keyalgorithm: dns.name.Name | str = dns.tsig.default_algorithm,
+        keyalgorithm: dns.tsig.ToAlgorithm = dns.tsig.default_algorithm,
         id: int | None = None,
     ):
         """Initialize a new DNS Update object.
@@ -131,7 +132,7 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         ttl: int,
         rd: dns.rdata.Rdata,
         deleting: dns.rdataclass.RdataClass | None = None,
-        section: dns.message.SectionInt | None = None,
+        section: dns.message.SectionType | None = None,
     ) -> None:
         """Add a single RR to the update section."""
 
@@ -143,7 +144,50 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
         )
         rrset.add(rd, ttl)
 
-    def _add(self, replace, section, name, *args):
+    @overload
+    def _add(
+        self,
+        replace: bool,
+        section: dns.message.SectionType,
+        name: dns.name.Name | str,
+    ) -> None: ...
+    @overload
+    def _add(
+        self,
+        replace: bool,
+        section: dns.message.SectionType,
+        name: dns.name.Name | str,
+        *args: dns.rdataset.Rdataset,
+    ) -> None: ...
+    @overload
+    def _add(
+        self,
+        replace: bool,
+        section: dns.message.SectionType,
+        name: dns.name.Name | str,
+        ttl: int,
+        /,
+        *args: dns.rdata.Rdata
+    ) -> None: ...
+    @overload
+    def _add(
+        self,
+        replace: bool,
+        section: dns.message.SectionType,
+        name: dns.name.Name | str,
+        ttl: int,
+        rdtype: dns.rdatatype.RdataType,
+        /,
+        *args: str,
+    ) -> None: ...
+
+    def _add(
+        self,
+        replace: bool,
+        section: dns.message.SectionType,
+        name: dns.name.Name | str,
+        *splat: Any,
+    ) -> None:
         """Add records.
 
         *replace* is the replacement mode.  If ``False``,
@@ -161,14 +205,15 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
 
         if isinstance(name, str):
             name = dns.name.from_text(name, None)
-        if isinstance(args[0], dns.rdataset.Rdataset):
-            for rds in args:
+        if isinstance(splat[0], dns.rdataset.Rdataset):
+            rdatasets = cast(tuple[dns.rdataset.Rdataset, ...], splat)
+            for rds in rdatasets:
                 if replace:
                     self.delete(name, rds.rdtype)
                 for rd in rds:
                     self._add_rr(name, rds.ttl, rd, section=section)
         else:
-            args = list(args)
+            args:list[Any] = list(splat)
             ttl = int(args.pop(0))
             if isinstance(args[0], dns.rdata.Rdata):
                 if replace:
@@ -363,11 +408,17 @@ class UpdateMessage(dns.message.Message):  # lgtm[py/missing-equals]
                 True,
             )
 
-    def _get_one_rr_per_rrset(self, value):
+    def _get_one_rr_per_rrset(self, value: bool) -> Literal[True]:
         # Updates are always one_rr_per_rrset
         return True
 
-    def _parse_rr_header(self, section, name, rdclass, rdtype):  # pyright: ignore
+    def _parse_rr_header(
+        self,
+        section: dns.message.MessageSection,
+        name: dns.name.Name,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+    ) -> tuple[dns.rdataclass.RdataClass, dns.rdatatype.RdataType, dns.rdataclass.RdataClass | None, bool]:
         deleting = None
         empty = False
         if section == UpdateSection.ZONE:

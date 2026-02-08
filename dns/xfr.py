@@ -238,6 +238,7 @@ class Inbound:
             # cases it would be good if we could keep it in some side location, but
             # dnspython zones don't have a place or an API for that, so we just ignore
             # it at this time.
+            assert name is not None
             if not name.is_subdomain(self.origin):
                 continue
             # Add or remove the data
@@ -274,9 +275,9 @@ def make_query(
     payload: int | None = None,
     request_payload: int | None = None,
     options: list[dns.edns.Option] | None = None,
-    keyring: Any = None,
+    keyring: dns.tsigkeyring.KeyringLike = None,
     keyname: dns.name.Name | None = None,
-    keyalgorithm: dns.name.Name | str = dns.tsig.default_algorithm,
+    keyalgorithm: dns.tsig.ToAlgorithm = dns.tsig.default_algorithm,
 ) -> tuple[dns.message.QueryMessage, int | None]:
     """Make an AXFR or IXFR query.
 
@@ -357,6 +358,7 @@ def extract_serial_from_query(query: dns.message.Message) -> int | None:
         return None
     elif question.rdtype != dns.rdatatype.IXFR:
         raise ValueError("query is not an AXFR or IXFR")
+    assert question.name is not None
     soa_rrset = query.find_rrset(
         query.authority, question.name, question.rdclass, dns.rdatatype.SOA
     )

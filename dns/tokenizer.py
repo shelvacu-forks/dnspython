@@ -87,12 +87,12 @@ class Token:
     def is_eol_or_eof(self) -> bool:
         return self.ttype == EOL or self.ttype == EOF
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Token):
             return False
         return self.ttype == other.ttype and self.value == other.value
 
-    def __ne__(self, other):
+    def __ne__(self, other: Any) -> bool:
         if not isinstance(other, Token):
             return True
         return self.ttype != other.ttype or self.value != other.value
@@ -567,7 +567,7 @@ class Tokenizer:
         Returns a list of tokens.
         """
 
-        tokens = []
+        tokens:list[Token] = []
         while True:
             token = self.get()
             if token.is_eol_or_eof():

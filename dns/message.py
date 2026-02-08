@@ -703,13 +703,13 @@ class Message:
 
     def use_tsig(
         self,
-        keyring: "dns.tsigkeyring.Keyring | dns.tsig.Key | Callable[[Message, dns.name.Name | str | None], dns.tsig.Key]",
+        keyring: dns.tsigkeyring.KeyringLike,
         keyname: dns.name.Name | str | None = None,
         fudge: int = 300,
         original_id: int | None = None,
         tsig_error: int = 0,
         other_data: bytes = b"",
-        algorithm: dns.tsig.Algorithm | dns.name.Name | str = dns.tsig.default_algorithm,
+        algorithm: dns.tsig.ToAlgorithm = dns.tsig.default_algorithm,
     ) -> None:
         """When sending, a TSIG signature using the specified key
         should be added.
@@ -745,20 +745,14 @@ class Message:
         only used if *keyring* is a ``dict``, and the key entry is a ``bytes``.
         """
 
-        if isinstance(keyring, dns.tsig.Key):
-            key = keyring
-            keyname = key.name
-        elif callable(keyring):
-            key = keyring(self, keyname)
-        else:
-            if isinstance(keyname, str):
-                keyname = dns.name.from_text(keyname)
-            if keyname is None:
-                keyname = next(iter(keyring))
-            key = keyring[keyname]
-            if isinstance(key, bytes):
-                algorithm = dns.tsig.Algorithm(algorithm)
-                key = dns.tsig.make_key(keyname, key, algorithm)
+        algorithm_really = dns.tsig.to_algorithm(algorithm),
+        key = dns.tsigkeyring.get_key(
+            keyname=keyname,
+            keyring=keyring,
+            message=self,
+            default_algorithm=cast(dns.tsig.AlgorithmHMAC, algorithm_really),
+        )
+        assert key is not None
         self.keyring = key
         if original_id is None:
             original_id = self.id
@@ -974,7 +968,7 @@ class Message:
         name: dns.name.Name,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-    ) -> tuple[dns.rdataclass.RdataClass, dns.rdatatype.RdataType, None, bool]:
+    ) -> tuple[dns.rdataclass.RdataClass, dns.rdatatype.RdataType, dns.rdataclass.RdataClass | None, bool]:
         return (rdclass, rdtype, None, False)
 
     # pylint: enable=unused-argument
