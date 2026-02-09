@@ -39,7 +39,7 @@ class NSBase(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
     ):
         target = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, target)

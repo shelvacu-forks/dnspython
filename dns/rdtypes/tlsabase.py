@@ -17,7 +17,7 @@
 
 import binascii
 import struct
-from typing import Any
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rdata
@@ -61,8 +61,8 @@ class TLSABase(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
-    ):
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
+    ) -> Self:
         usage = tok.get_uint8()
         selector = tok.get_uint8()
         mtype = tok.get_uint8()

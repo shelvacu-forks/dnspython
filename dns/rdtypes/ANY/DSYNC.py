@@ -52,7 +52,7 @@ class DSYNC(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
     ):
         rrtype = dns.rdatatype.from_text(tok.get_string())
         scheme = Scheme.make(tok.get_string())

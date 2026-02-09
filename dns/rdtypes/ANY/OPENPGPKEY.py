@@ -38,7 +38,7 @@ class OPENPGPKEY(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
     ):
         b64 = tok.concatenate_remaining_identifiers().encode()
         key = base64.b64decode(b64)

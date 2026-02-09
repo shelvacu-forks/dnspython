@@ -545,7 +545,7 @@ class SVCBBase(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
     ):
         priority = tok.get_uint16()
         target = tok.get_name(origin, relativize, relativize_to)
