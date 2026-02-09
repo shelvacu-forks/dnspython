@@ -18,7 +18,8 @@
 """Generic Internet address helper functions."""
 
 import socket
-from typing import Any
+import typing
+from typing import Any, Literal, overload
 
 import dns.ipv4
 import dns.ipv6
@@ -116,13 +117,16 @@ def is_multicast(text: str) -> bool:
             raise ValueError
 
 
-def is_address(text: str) -> bool:
+def is_address(text: str | None) -> bool:
     """Is the specified string an IPv4 or IPv6 address?
 
     *text*, a ``str``, the textual address.
 
     Returns a ``bool``.
     """
+
+    if text is None:
+        return False
 
     try:
         dns.ipv4.inet_aton(text)
@@ -135,7 +139,18 @@ def is_address(text: str) -> bool:
             return False
 
 
-def low_level_address_tuple(high_tuple: tuple[str, int], af: int | None = None) -> Any:
+AF_INET_LITERAL = Literal[2]
+assert typing.get_args(AF_INET_LITERAL) == (AF_INET,)
+AF_INET6_LITERAL = Literal[10]
+assert typing.get_args(AF_INET_LITERAL) == (AF_INET6,)
+
+@overload
+def low_level_address_tuple(high_tuple: tuple[str, int], af: AF_INET_LITERAL) -> tuple[str, int]: ...
+@overload
+def low_level_address_tuple(high_tuple: tuple[str, int], af: AF_INET6_LITERAL) -> tuple[str, int, int, int]: ...
+@overload
+def low_level_address_tuple(high_tuple: tuple[str, int], af: int | None = None) -> tuple[str, int] | tuple[str, int, int, int]: ...
+def low_level_address_tuple(high_tuple: tuple[str, int], af: int | None = None) -> tuple[str, int] | tuple[str, int, int, int]:
     """Given a "high-level" address tuple, i.e.
     an (address, port) return the appropriate "low-level" address tuple
     suitable for use in socket calls.
@@ -169,7 +184,7 @@ def low_level_address_tuple(high_tuple: tuple[str, int], af: int | None = None) 
         raise NotImplementedError(f"unknown address family {af}")
 
 
-def any_for_af(af):
+def any_for_af(af: int) -> str:
     """Return the 'any' address for the specified address family."""
     if af == socket.AF_INET:
         return "0.0.0.0"

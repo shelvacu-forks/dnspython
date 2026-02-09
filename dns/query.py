@@ -29,7 +29,7 @@ import struct
 import time
 import urllib.parse
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any, cast, overload
 
 import dns._features
 import dns._tls_util
@@ -51,7 +51,11 @@ except ImportError:
     import dns._no_ssl as ssl  # pyright: ignore
 
 
-def _remaining(expiration):
+@overload
+def _remaining(expiration: None) -> None: ...
+@overload
+def _remaining(expiration: float) -> float: ...
+def _remaining(expiration: float | None) -> float | None:
     if expiration is None:
         return None
     timeout = expiration - time.time()
@@ -60,7 +64,7 @@ def _remaining(expiration):
     return timeout
 
 
-def _expiration_for_this_attempt(timeout, expiration):
+def _expiration_for_this_attempt(timeout: float, expiration: float | None) -> float | None:
     if expiration is None:
         return None
     return min(time.time() + timeout, expiration)

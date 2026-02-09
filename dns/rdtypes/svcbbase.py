@@ -3,7 +3,9 @@
 import base64
 import enum
 import struct
-from typing import Any
+import ipaddress
+from collections.abc import Sequence, MutableMapping, Mapping
+from typing import Any, Self, IO, Literal, SupportsInt, Never
 
 import dns.enum
 import dns.exception
@@ -60,7 +62,7 @@ class Emptiness(enum.IntEnum):
     ALLOWED = 2
 
 
-def _validate_key(key):
+def _validate_key(key: str | bytes | int) -> tuple[ParamKey, bool]:
     force_generic = False
     if isinstance(key, bytes):
         # We decode to latin-1 so we get 0-255 as valid and do NOT interpret
@@ -76,7 +78,7 @@ def _validate_key(key):
     return (ParamKey.make(key), force_generic)
 
 
-def key_to_text(key):
+def key_to_text(key: int) -> str:
     return ParamKey.to_text(key).replace("_", "-").lower()
 
 
@@ -85,7 +87,7 @@ def key_to_text(key):
 _escaped = b'",\\'
 
 
-def _escapify(qstring):
+def _escapify(qstring: bytes) -> str:
     text = ""
     for c in qstring:
         if c in _escaped:
@@ -131,10 +133,10 @@ def _unescape(value: str) -> bytes:
     return unescaped
 
 
-def _split(value):
+def _split(value: bytes) -> list[bytes]:
     l = len(value)
     i = 0
-    items = []
+    items:list[bytes] = []
     unescaped = b""
     while i < l:
         c = value[i]
@@ -162,12 +164,22 @@ class Param:
     def emptiness(cls) -> Emptiness:
         return Emptiness.NEVER
 
+    @classmethod
+    def from_value(cls, value: str | None) -> Self | None:
+        raise NotImplemented
+
+    @classmethod
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self | None:  # pylint: disable=W0613
+        raise NotImplemented
+
 
 @dns.immutable.immutable
 class GenericParam(Param):
     """Generic SVCB parameter"""
 
-    def __init__(self, value):
+    value: bytes
+
+    def __init__(self, value: bytes | bytearray | str):
         self.value = dns.rdata.Rdata._as_bytes(value, True)
 
     @classmethod
@@ -175,33 +187,35 @@ class GenericParam(Param):
         return Emptiness.ALLOWED
 
     @classmethod
-    def from_value(cls, value):
-        if value is None or len(value) == 0:
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
             return None
         else:
             return cls(_unescape(value))
 
-    def to_text(self):
+    def to_text(self) -> str:
         return '"' + dns.rdata._escapify(self.value) + '"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self | None:  # pylint: disable=W0613
         value = parser.get_bytes(parser.remaining())
         if len(value) == 0:
             return None
         else:
             return cls(value)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None):  # pylint: disable=W0613
         file.write(self.value)
 
 
 @dns.immutable.immutable
 class MandatoryParam(Param):
-    def __init__(self, keys):
+    keys: tuple[ParamKey, ...]
+
+    def __init__(self, keys_args: Sequence[str | bytes | int], /) -> None:
         # check for duplicates
-        keys = sorted([_validate_key(key)[0] for key in keys])
-        prior_k = None
+        keys = sorted([_validate_key(key)[0] for key in keys_args])
+        prior_k: str | bytes | int | None = None
         for k in keys:
             if k == prior_k:
                 raise ValueError(f"duplicate key {k:d}")
@@ -211,7 +225,9 @@ class MandatoryParam(Param):
         self.keys = tuple(keys)
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
         keys = [k.encode() for k in value.split(",")]
         return cls(keys)
 
@@ -219,46 +235,48 @@ class MandatoryParam(Param):
         return '"' + ",".join([key_to_text(key) for key in self.keys]) + '"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
-        keys = []
-        last_key = -1
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
+        keys:list[int] = []
+        last_key: int | None = None
         while parser.remaining() > 0:
             key = parser.get_uint16()
-            if key < last_key:
+            if last_key is not None and key < last_key:
                 raise dns.exception.FormError("manadatory keys not ascending")
             last_key = key
             keys.append(key)
         return cls(keys)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file:IO[bytes], origin: dns.name.Name | None = None):  # pylint: disable=W0613
         for key in self.keys:
             file.write(struct.pack("!H", key))
 
 
 @dns.immutable.immutable
 class ALPNParam(Param):
-    def __init__(self, ids):
+    def __init__(self, ids: Sequence[bytes | bytearray | str]):
         self.ids = dns.rdata.Rdata._as_tuple(
             ids, lambda x: dns.rdata.Rdata._as_bytes(x, True, 255, False)
         )
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
         return cls(_split(_unescape(value)))
 
-    def to_text(self):
+    def to_text(self) -> str:
         value = ",".join([_escapify(id) for id in self.ids])
         return '"' + dns.rdata._escapify(value.encode()) + '"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
-        ids = []
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
+        ids:list[bytes] = []
         while parser.remaining() > 0:
             id = parser.get_counted_bytes()
             ids.append(id)
         return cls(ids)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         for id in self.ids:
             file.write(struct.pack("!B", len(id)))
             file.write(id)
@@ -271,129 +289,139 @@ class NoDefaultALPNParam(Param):
     # from the class methods when things are OK.
 
     @classmethod
-    def emptiness(cls):
+    def emptiness(cls) -> Literal[Emptiness.ALWAYS]:
         return Emptiness.ALWAYS
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> None:
         if value is None or value == "":
             return None
         else:
             raise ValueError("no-default-alpn with non-empty value")
 
-    def to_text(self):
+    def to_text(self) -> Self:
         raise NotImplementedError  # pragma: no cover
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         if parser.remaining() != 0:
             raise dns.exception.FormError
         return None
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         raise NotImplementedError  # pragma: no cover
 
 
 @dns.immutable.immutable
 class PortParam(Param):
-    def __init__(self, port):
+    port: int
+    def __init__(self, port: int) -> None:
         self.port = dns.rdata.Rdata._as_uint16(port)
 
     @classmethod
-    def from_value(cls, value):
-        value = int(value)
-        return cls(value)
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
+        value_i = int(value)
+        return cls(value_i)
 
-    def to_text(self):
+    def to_text(self) -> str:
         return f'"{self.port}"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
         port = parser.get_uint16()
         return cls(port)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         file.write(struct.pack("!H", self.port))
 
 
 @dns.immutable.immutable
 class IPv4HintParam(Param):
-    def __init__(self, addresses):
+    def __init__(self, addresses: Sequence[str|bytes|ipaddress.IPv4Address]) -> None:
         self.addresses = dns.rdata.Rdata._as_tuple(
             addresses, dns.rdata.Rdata._as_ipv4_address
         )
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
         addresses = value.split(",")
         return cls(addresses)
 
-    def to_text(self):
+    def to_text(self) -> str:
         return '"' + ",".join(self.addresses) + '"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
-        addresses = []
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
+        addresses:list[str] = []
         while parser.remaining() > 0:
             ip = parser.get_bytes(4)
             addresses.append(dns.ipv4.inet_ntoa(ip))
         return cls(addresses)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         for address in self.addresses:
             file.write(dns.ipv4.inet_aton(address))
 
 
 @dns.immutable.immutable
 class IPv6HintParam(Param):
-    def __init__(self, addresses):
+    def __init__(self, addresses:Sequence[str|bytes|ipaddress.IPv6Address]) -> None:
         self.addresses = dns.rdata.Rdata._as_tuple(
             addresses, dns.rdata.Rdata._as_ipv6_address
         )
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
         addresses = value.split(",")
         return cls(addresses)
 
-    def to_text(self):
+    def to_text(self) -> str:
         return '"' + ",".join(self.addresses) + '"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
-        addresses = []
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
+        addresses:list[str] = []
         while parser.remaining() > 0:
             ip = parser.get_bytes(16)
             addresses.append(dns.ipv6.inet_ntoa(ip))
         return cls(addresses)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         for address in self.addresses:
             file.write(dns.ipv6.inet_aton(address))
 
 
 @dns.immutable.immutable
 class ECHParam(Param):
-    def __init__(self, ech):
+    ech: bytes
+    def __init__(self, ech: str | bytes | bytearray):
         self.ech = dns.rdata.Rdata._as_bytes(ech, True)
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> Self | None:
+        if value is None or value == "":
+            return None
         if "\\" in value:
             raise ValueError("escape in ECH value")
-        value = base64.b64decode(value.encode())
-        return cls(value)
+        value_b = base64.b64decode(value.encode())
+        return cls(value_b)
 
-    def to_text(self):
+    def to_text(self) -> str:
         b64 = base64.b64encode(self.ech).decode("ascii")
         return f'"{b64}"'
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:  # pylint: disable=W0613
         value = parser.get_bytes(parser.remaining())
         return cls(value)
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         file.write(self.ech)
 
 
@@ -404,30 +432,30 @@ class OHTTPParam(Param):
     # from the class methods when things are OK.
 
     @classmethod
-    def emptiness(cls):
+    def emptiness(cls) -> Literal[Emptiness.ALWAYS]:
         return Emptiness.ALWAYS
 
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: str | None) -> None:
         if value is None or value == "":
             return None
         else:
             raise ValueError("ohttp with non-empty value")
 
-    def to_text(self):
+    def to_text(self) -> Never:
         raise NotImplementedError  # pragma: no cover
 
     @classmethod
-    def from_wire_parser(cls, parser, origin=None):  # pylint: disable=W0613
+    def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         if parser.remaining() != 0:
             raise dns.exception.FormError
         return None
 
-    def to_wire(self, file, origin=None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> Never:  # pylint: disable=W0613
         raise NotImplementedError  # pragma: no cover
 
 
-_class_for_key: dict[ParamKey, Any] = {
+_class_for_key: dict[ParamKey, type[Param]] = {
     ParamKey.MANDATORY: MandatoryParam,
     ParamKey.ALPN: ALPNParam,
     ParamKey.NO_DEFAULT_ALPN: NoDefaultALPNParam,
@@ -438,23 +466,24 @@ _class_for_key: dict[ParamKey, Any] = {
     ParamKey.OHTTP: OHTTPParam,
 }
 
+# _foo: type[Param] = ALPNParam | PortParam
 
-def _validate_and_define(params, key, value):
-    key, force_generic = _validate_key(_unescape(key))
+def _validate_and_define(params: MutableMapping[ParamKey, Param | None], key_arg: str, value: str | None) -> None:
+    key, force_generic = _validate_key(_unescape(key_arg))
     if key in params:
         raise SyntaxError(f'duplicate key "{key:d}"')
-    cls = _class_for_key.get(key, GenericParam)
+    cls:type[Param] = _class_for_key.get(key, GenericParam)
     emptiness = cls.emptiness()
     if value is None:
         if emptiness == Emptiness.NEVER:
             raise SyntaxError("value cannot be empty")
-        value = cls.from_value(value)
+        value_p = cls.from_value(value)
     else:
         if force_generic:
-            value = cls.from_wire_parser(dns.wire.Parser(_unescape(value)))
+            value_p = cls.from_wire_parser(dns.wire.Parser(_unescape(value)))
         else:
-            value = cls.from_value(value)
-    params[key] = value
+            value_p = cls.from_value(value)
+    params[key] = value_p
 
 
 @dns.immutable.immutable
@@ -464,8 +493,18 @@ class SVCBBase(dns.rdata.Rdata):
     # see: draft-ietf-dnsop-svcb-https-11
 
     __slots__ = ["priority", "target", "params"]
+    priority: int
+    target: dns.name.Name
+    params: dns.immutable.Dict[ParamKey, Param | None]
 
-    def __init__(self, rdclass, rdtype, priority, target, params):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        priority: int,
+        target: str | dns.name.Name,
+        params: Mapping[ParamKey, Param | None],
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.priority = self._as_uint16(priority)
         self.target = self._as_name(target)

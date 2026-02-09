@@ -4,6 +4,8 @@
 
 import socket
 import time
+from collections.abc import Iterable
+from typing import Protocol, Literal, TypeAlias
 from urllib.parse import urlparse
 
 import dns.asyncbackend
@@ -12,6 +14,8 @@ import dns.name
 import dns.nameserver
 import dns.query
 import dns.rdtypes.svcbbase
+import dns.resolver
+import dns.rdtypes.IN.SVCB
 
 # The special name of the local resolver when using DDR
 _local_resolver_name = dns.name.from_text("_dns.resolver.arpa")
@@ -24,26 +28,35 @@ _local_resolver_name = dns.name.from_text("_dns.resolver.arpa")
 
 
 class _SVCBInfo:
-    def __init__(self, bootstrap_address, port, hostname, nameservers):
+    def __init__(
+        self,
+        bootstrap_address: str,
+        port: int,
+        hostname: str,
+        nameservers: list[dns.nameserver.Nameserver],
+    ) -> None:
         self.bootstrap_address = bootstrap_address
         self.port = port
         self.hostname = hostname
         self.nameservers = nameservers
 
-    def ddr_check_certificate(self, cert):
+    def ddr_check_certificate(self, cert: dns.asyncbackend.PeerCertDict) -> bool:
         """Verify that the _SVCBInfo's address is in the cert's subjectAltName (SAN)"""
-        for name, value in cert["subjectAltName"]:
+        for thing in cert["subjectAltName"]:
+            assert isinstance(thing, tuple)
+            assert isinstance(thing[0], str)
+            name, value = thing
             if name == "IP Address" and value == self.bootstrap_address:
                 return True
         return False
 
-    def make_tls_context(self):
+    def make_tls_context(self) -> dns.query.ssl.SSLContext:
         ssl = dns.query.ssl
         ctx = ssl.create_default_context()
-        ctx.minimum_version = ssl.TLSVersion.TLSv1_2  # type: ignore
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         return ctx
 
-    def ddr_tls_check_sync(self, lifetime):
+    def ddr_tls_check_sync(self, lifetime: float) -> bool:
         ctx = self.make_tls_context()
         expiration = time.time() + lifetime
         with socket.create_connection(
@@ -53,9 +66,14 @@ class _SVCBInfo:
                 ts.settimeout(dns.query._remaining(expiration))
                 ts.do_handshake()
                 cert = ts.getpeercert()
+                assert cert is not None
                 return self.ddr_check_certificate(cert)
 
-    async def ddr_tls_check_async(self, lifetime, backend=None):
+    async def ddr_tls_check_async(
+        self,
+        lifetime: float,
+        backend: dns.asyncbackend.Backend | None = None,
+    ) -> bool:
         if backend is None:
             backend = dns.asyncbackend.get_default_backend()
         ctx = self.make_tls_context()
@@ -74,12 +92,14 @@ class _SVCBInfo:
             return self.ddr_check_certificate(cert)
 
 
-def _extract_nameservers_from_svcb(answer):
+def _extract_nameservers_from_svcb(answer: dns.resolver.Answer) -> list[_SVCBInfo]:
     bootstrap_address = answer.nameserver
     if not dns.inet.is_address(bootstrap_address):
         return []
-    infos = []
+    infos:list[_SVCBInfo] = []
+    assert answer.rrset is not None
     for rr in answer.rrset.processing_order():
+        assert isinstance(rr, dns.rdtypes.IN.SVCB.SVCB)
         nameservers = []
         param = rr.params.get(dns.rdtypes.svcbbase.ParamKey.ALPN)
         if param is None:
@@ -126,10 +146,10 @@ def _extract_nameservers_from_svcb(answer):
     return infos
 
 
-def _get_nameservers_sync(answer, lifetime):
+def _get_nameservers_sync(answer: dns.resolver.Answer, lifetime: float) -> list[dns.nameserver.Nameserver]: # type: ignore[reportUnusedFunction]
     """Return a list of TLS-validated resolver nameservers extracted from an SVCB
     answer."""
-    nameservers = []
+    nameservers:list[dns.nameserver.Nameserver] = []
     infos = _extract_nameservers_from_svcb(answer)
     for info in infos:
         try:
@@ -140,10 +160,10 @@ def _get_nameservers_sync(answer, lifetime):
     return nameservers
 
 
-async def _get_nameservers_async(answer, lifetime):
+async def _get_nameservers_async(answer: dns.resolver.Answer, lifetime: float) -> list[dns.nameserver.Nameserver]: # type: ignore[reportUnusedFunction]
     """Return a list of TLS-validated resolver nameservers extracted from an SVCB
     answer."""
-    nameservers = []
+    nameservers:list[dns.nameserver.Nameserver] = []
     infos = _extract_nameservers_from_svcb(answer)
     for info in infos:
         try:

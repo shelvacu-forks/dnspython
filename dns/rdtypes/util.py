@@ -18,8 +18,8 @@
 import collections
 import random
 import struct
-from collections.abc import Iterable
-from typing import Any
+from collections.abc import Iterable, Mapping
+from typing import Any, Self, IO, Protocol
 
 import dns.exception
 import dns.ipv4
@@ -35,14 +35,21 @@ class Gateway:
     """A helper class for the IPSECKEY gateway and AMTRELAY relay fields"""
 
     name = ""
+    # when...
+    # type == 0: gateway is "." or None
+    # type == 1: gateway is str ipv4 address
+    # type == 2: gateway is str ipv6 address
+    # type == 3: gateway is dns.name.Name
+    type: int
+    gateway: str | dns.name.Name | None
 
-    def __init__(self, type: Any, gateway: str | dns.name.Name | None = None):
+    def __init__(self, type: int, gateway: str | dns.name.Name | None = None):
         self.type = dns.rdata.Rdata._as_uint8(type)
         self.gateway = gateway
         self._check()
 
     @classmethod
-    def _invalid_type(cls, gateway_type):
+    def _invalid_type(cls, gateway_type: Any) -> str:
         return f"invalid {cls.name} type: {gateway_type}"
 
     def _check(self):
@@ -64,10 +71,11 @@ class Gateway:
         else:
             raise SyntaxError(self._invalid_type(self.type))
 
-    def to_text(self, origin=None, relativize=True):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True) -> str:
         if self.type == 0:
             return "."
         elif self.type in (1, 2):
+            assert isinstance(self.gateway, str)
             return self.gateway
         elif self.type == 3:
             assert isinstance(self.gateway, dns.name.Name)
@@ -77,8 +85,13 @@ class Gateway:
 
     @classmethod
     def from_text(
-        cls, gateway_type, tok, origin=None, relativize=True, relativize_to=None
-    ):
+        cls,
+        gateway_type: int,
+        tok: dns.tokenizer.Tokenizer,
+        origin: dns.name.Name | None = None,
+        relativize: bool = True,
+        relativize_to: dns.name.Name | None = None,
+    ) -> Self:
         if gateway_type in (0, 1, 2):
             gateway = tok.get_string()
         elif gateway_type == 3:
@@ -90,7 +103,13 @@ class Gateway:
         return cls(gateway_type, gateway)
 
     # pylint: disable=unused-argument
-    def to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def to_wire(
+        self,
+        file: IO[bytes],
+        compress: dns.name.CompressType | None = None,
+        origin: dns.name.Name | None = None,
+        canonicalize: bool = False,
+    ) -> None:
         if self.type == 0:
             pass
         elif self.type == 1:
@@ -108,7 +127,12 @@ class Gateway:
     # pylint: enable=unused-argument
 
     @classmethod
-    def from_wire_parser(cls, gateway_type, parser, origin=None):
+    def from_wire_parser(
+        cls,
+        gateway_type: int,
+        parser: dns.wire.Parser,
+        origin: dns.name.Name | None = None,
+    ) -> Self:
         if gateway_type == 0:
             gateway = None
         elif gateway_type == 1:
@@ -127,7 +151,7 @@ class Bitmap:
 
     type_name = ""
 
-    def __init__(self, windows: Iterable[tuple[int, bytes]] | None = None):
+    def __init__(self, windows: Iterable[tuple[int, bytes]] | None = None) -> None:
         last_window = -1
         if windows is None:
             windows = []
@@ -148,7 +172,7 @@ class Bitmap:
     def to_text(self) -> str:
         text = ""
         for window, bitmap in self.windows:
-            bits = []
+            bits:list[str] = []
             for i, byte in enumerate(bitmap):
                 for j in range(0, 8):
                     if byte & (0x80 >> j):
@@ -159,7 +183,7 @@ class Bitmap:
 
     @classmethod
     def from_text(cls, tok: "dns.tokenizer.Tokenizer") -> "Bitmap":
-        rdtypes = []
+        rdtypes:list[dns.rdatatype.RdataType] = []
         for token in tok.get_remaining():
             rdtype = dns.rdatatype.from_text(token.unescape().value)
             if rdtype == 0:
@@ -174,7 +198,7 @@ class Bitmap:
         octets = 0
         prior_rdtype = 0
         bitmap = bytearray(b"\0" * 32)
-        windows = []
+        windows:list[tuple[int, bytes]] = []
         for rdtype in rdtypes:
             if rdtype == prior_rdtype:
                 continue
@@ -201,7 +225,7 @@ class Bitmap:
 
     @classmethod
     def from_wire_parser(cls, parser: "dns.wire.Parser") -> "Bitmap":
-        windows = []
+        windows:list[tuple[int, bytes]] = []
         while parser.remaining() > 0:
             window = parser.get_uint8()
             bitmap = parser.get_counted_bytes()
@@ -209,19 +233,30 @@ class Bitmap:
         return cls(windows)
 
 
-def _priority_table(items):
-    by_priority = collections.defaultdict(list)
+class _HasPriority[T](Protocol):
+    def _processing_priority(self) -> T: ...
+
+class _HasWeight[W, P](_HasPriority[P]):
+    def _processing_weight(self) -> W: ...
+
+
+# class _PriorityTableMaker[T]:
+#     def __init__(self, rdatas: Iterable[_HasPriority
+
+
+def _priority_table[T: _HasPriority[Any]](items: Iterable[T]) -> Mapping[Any, list[T]]:
+    by_priority:collections.defaultdict[Any, list[T]] = collections.defaultdict(list)
     for rdata in items:
         by_priority[rdata._processing_priority()].append(rdata)
     return by_priority
 
 
-def priority_processing_order(iterable):
+def priority_processing_order[T: _HasPriority[Any]](iterable: Iterable[T]) -> list[T]:
     items = list(iterable)
     if len(items) == 1:
         return items
     by_priority = _priority_table(items)
-    ordered = []
+    ordered:list[T] = []
     for k in sorted(by_priority.keys()):
         rdatas = by_priority[k]
         random.shuffle(rdatas)
@@ -232,12 +267,12 @@ def priority_processing_order(iterable):
 _no_weight = 0.1
 
 
-def weighted_processing_order(iterable):
-    items = list(iterable)
+def weighted_processing_order[T: _HasWeight[Any, Any]](iterable: Iterable[T]) -> list[T]:
+    items:list[T] = list(iterable)
     if len(items) == 1:
         return items
     by_priority = _priority_table(items)
-    ordered = []
+    ordered:list[T] = []
     for k in sorted(by_priority.keys()):
         rdatas = by_priority[k]
         total = sum(rdata._processing_weight() or _no_weight for rdata in rdatas)
@@ -256,7 +291,7 @@ def weighted_processing_order(iterable):
     return ordered
 
 
-def parse_formatted_hex(formatted, num_chunks, chunk_size, separator):
+def parse_formatted_hex(formatted:str, num_chunks:int, chunk_size:int, separator:str) -> bytes:
     if len(formatted) != num_chunks * (chunk_size + 1) - 1:
         raise ValueError("invalid formatted hex string")
     value = b""

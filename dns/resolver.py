@@ -24,14 +24,14 @@ import sys
 import threading
 import time
 import warnings
-from collections.abc import Iterator, Sequence
-from typing import Any, cast
+import abc
+from collections.abc import Iterator, Sequence, Mapping
+from typing import Any, cast, TypedDict, IO
 from urllib.parse import urlparse
 
 import dns._ddr
 import dns.edns
 import dns.exception
-import dns.flags
 import dns.inet
 import dns.ipv4
 import dns.ipv6
@@ -40,16 +40,22 @@ import dns.name
 import dns.nameserver
 import dns.query
 import dns.rcode
-import dns.rdata
 import dns.rdataclass
 import dns.rdatatype
 import dns.rdtypes.ANY.PTR
-import dns.rdtypes.svcbbase
 import dns.reversename
 import dns.tsig
 
 if sys.platform == "win32":  # pragma: no cover
     import dns.win32util
+
+_QnamesType = list[dns.name.Name] | tuple[dns.name.Name, ...] | set[dns.name.Name] 
+_ResponsesType = dict[dns.name.Name, dns.message.QueryMessage]
+
+
+class _NX_Kwargs(TypedDict):
+    qnames: _QnamesType
+    responses: _ResponsesType
 
 
 class NXDOMAIN(dns.exception.DNSException):
@@ -62,10 +68,10 @@ class NXDOMAIN(dns.exception.DNSException):
 
     # We do this as otherwise mypy complains about unexpected keyword argument
     # idna_exception
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    def _check_kwargs(self, qnames, responses=None):  # type: ignore
+    def _check_kwargs(self, qnames: _QnamesType = (), responses: _ResponsesType | None = None, **kwargs: Any) -> _NX_Kwargs:
         if not isinstance(qnames, list | tuple | set):
             raise AttributeError("qnames must be a list, tuple or set")
         if len(qnames) == 0:
@@ -74,8 +80,7 @@ class NXDOMAIN(dns.exception.DNSException):
             responses = {}
         elif not isinstance(responses, dict):
             raise AttributeError("responses must be a dict(qname=response)")
-        kwargs = dict(qnames=qnames, responses=responses)
-        return kwargs
+        return _NX_Kwargs(qnames=qnames, responses=responses)
 
     def __str__(self) -> str:
         if "qnames" not in self.kwargs:
@@ -105,7 +110,7 @@ class NXDOMAIN(dns.exception.DNSException):
                 pass
         return self.kwargs["qnames"][0]
 
-    def __add__(self, e_nx):
+    def __add__(self, e_nx: "NXDOMAIN") -> "NXDOMAIN":
         """Augment by results from another NXDOMAIN exception."""
         qnames0 = list(self.kwargs.get("qnames", []))
         responses0 = dict(self.kwargs.get("responses", {}))
@@ -117,14 +122,14 @@ class NXDOMAIN(dns.exception.DNSException):
                 responses0[qname1] = responses1[qname1]
         return NXDOMAIN(qnames=qnames0, responses=responses0)
 
-    def qnames(self):
+    def qnames(self) -> _QnamesType:
         """All of the names that were tried.
 
         Returns a list of ``dns.name.Name``.
         """
         return self.kwargs["qnames"]
 
-    def responses(self):
+    def responses(self) -> _ResponsesType:
         """A map from queried names to their NXDOMAIN responses.
 
         Returns a dict mapping a ``dns.name.Name`` to a
@@ -132,7 +137,7 @@ class NXDOMAIN(dns.exception.DNSException):
         """
         return self.kwargs["responses"]
 
-    def response(self, qname):
+    def response(self, qname: dns.name.Name):
         """The response for query *qname*.
 
         Returns a ``dns.message.Message``.
@@ -155,7 +160,7 @@ ErrorTuple = tuple[
 
 def _errors_to_text(errors: list[ErrorTuple]) -> list[str]:
     """Turn a resolution errors trace into a list of text."""
-    texts = []
+    texts:list[str] = []
     for err in errors:
         texts.append(f"Server {err[0]} answered {err[3]}")
     return texts
@@ -170,10 +175,10 @@ class LifetimeTimeout(dns.exception.Timeout):
 
     # We do this as otherwise mypy complains about unexpected keyword argument
     # idna_exception
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    def _fmt_kwargs(self, **kwargs):
+    def _fmt_kwargs(self, **kwargs: Any) -> Mapping[str, Any]:
         srv_msgs = _errors_to_text(kwargs["errors"])
         return super()._fmt_kwargs(
             timeout=kwargs["timeout"], errors="; ".join(srv_msgs)
@@ -194,10 +199,10 @@ class NoAnswer(dns.exception.DNSException):
 
     # We do this as otherwise mypy complains about unexpected keyword argument
     # idna_exception
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    def _fmt_kwargs(self, **kwargs):
+    def _fmt_kwargs(self, **kwargs: Any) -> Mapping[str, Any]:
         return super()._fmt_kwargs(query=kwargs["response"].question)
 
     def response(self):
@@ -219,10 +224,10 @@ class NoNameservers(dns.exception.DNSException):
 
     # We do this as otherwise mypy complains about unexpected keyword argument
     # idna_exception
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-    def _fmt_kwargs(self, **kwargs):
+    def _fmt_kwargs(self, **kwargs: Any):
         srv_msgs = _errors_to_text(kwargs["errors"])
         return super()._fmt_kwargs(
             query=kwargs["request"].question, errors="; ".join(srv_msgs)
@@ -283,7 +288,7 @@ class Answer:
         self.rrset = self.chaining_result.answer
         self.expiration = time.time() + self.chaining_result.minimum_ttl
 
-    def __getattr__(self, attr):  # pragma: no cover
+    def __getattr__(self, attr: "str"):  # pragma: no cover
         if attr != "rrset" and self.rrset is not None:
             if attr == "name":
                 return self.rrset.name
@@ -304,18 +309,18 @@ class Answer:
     def __iter__(self) -> Iterator[Any]:
         return self.rrset is not None and iter(self.rrset) or iter(tuple())
 
-    def __getitem__(self, i):
+    def __getitem__(self, i: int | slice):
         if self.rrset is None:
             raise IndexError
         return self.rrset[i]
 
-    def __delitem__(self, i):
+    def __delitem__(self, i: int | slice):
         if self.rrset is None:
             raise IndexError
         del self.rrset[i]
 
 
-class Answers(dict):
+class Answers(dict[dns.rdatatype.RdataType, Answer]):
     """A dict of DNS stub resolver answers, indexed by type."""
 
 
@@ -441,7 +446,7 @@ class Cache(CacheBase):
 
         now = time.time()
         if self.next_cleaning <= now:
-            keys_to_delete = []
+            keys_to_delete:list[CacheKey] = []
             for k, v in self.data.items():
                 if v.expiration <= now:
                     keys_to_delete.append(k)
@@ -502,17 +507,19 @@ class Cache(CacheBase):
                 self.next_cleaning = time.time() + self.cleaning_interval
 
 
-class LRUCacheNode:
-    """LRUCache node."""
+type Node[K, V] = "LRUCacheNode[K, V] | SentinelCacheNode[K, V]"
 
-    def __init__(self, key, value):
-        self.key = key
-        self.value = value
+class NodeBase[K, V](metaclass=abc.ABCMeta):
+    hits: int
+    prev: "NodeBase[K, V]"
+    next: "NodeBase[K, V]"
+
+    def _init(self) -> None:
         self.hits = 0
         self.prev = self
         self.next = self
 
-    def link_after(self, node: "LRUCacheNode") -> None:
+    def link_after(self, node: "NodeBase[K, V]") -> None:
         self.prev = node
         self.next = node.next
         node.next.prev = self
@@ -521,6 +528,38 @@ class LRUCacheNode:
     def unlink(self) -> None:
         self.next.prev = self.prev
         self.prev.next = self.next
+
+    @abc.abstractmethod
+    def data(self) -> tuple[K, V] | None: ...
+
+class LRUCacheNode[K, V](NodeBase[K, V]):
+    """LRUCache node."""
+
+    key: K
+    value: V
+
+    def __init__(self, key: K, value: V):
+        self.key = key
+        self.value = value
+        self._init()
+
+    def data(self) -> tuple[K, V]:
+        return (self.key, self.value)
+
+class SentinelCacheNode[K, V](NodeBase[K, V]):
+    @property
+    def key(self) -> None:
+        return None
+
+    @property
+    def value(self) -> None:
+        return None
+
+    def __init__(self):
+        self._init()
+
+    def data(self) -> None:
+        return None
 
 
 class LRUCache(CacheBase):
@@ -539,11 +578,9 @@ class LRUCache(CacheBase):
         """
 
         super().__init__()
-        self.data: dict[CacheKey, LRUCacheNode] = {}
+        self.data: dict[CacheKey, LRUCacheNode[CacheKey, Answer]] = {}
         self.set_max_size(max_size)
-        self.sentinel: LRUCacheNode = LRUCacheNode(None, None)
-        self.sentinel.prev = self.sentinel
-        self.sentinel.next = self.sentinel
+        self.sentinel: SentinelCacheNode[CacheKey, Answer] = SentinelCacheNode()
 
     def set_max_size(self, max_size: int) -> None:
         if max_size < 1:
@@ -603,6 +640,7 @@ class LRUCache(CacheBase):
                 del self.data[node.key]
             while len(self.data) >= self.max_size:
                 gnode = self.sentinel.prev
+                assert isinstance(gnode, LRUCacheNode)
                 gnode.unlink()
                 del self.data[gnode.key]
             node = LRUCacheNode(key, value)
@@ -920,7 +958,7 @@ class BaseResolver:
     lifetime: float
     keyring: Any | None
     keyname: dns.name.Name | str | None
-    keyalgorithm: dns.name.Name | str
+    keyalgorithm: dns.tsig.Algorithm
     edns: int
     ednsflags: int
     ednsoptions: list[dns.edns.Option] | None
@@ -979,7 +1017,7 @@ class BaseResolver:
         self.rotate = False
         self.ndots = None
 
-    def read_resolv_conf(self, f: Any) -> None:
+    def read_resolv_conf(self, f: IO[str] | str) -> None:
         """Process *f* as a file in the /etc/resolv.conf format.  If f is
         a ``str``, it is used as the name of the file to open; otherwise it
         is treated as the file itself.
@@ -996,10 +1034,10 @@ class BaseResolver:
 
         """
 
-        nameservers = []
+        nameservers: list[str] = []
         if isinstance(f, str):
             try:
-                cm: contextlib.AbstractContextManager = open(f, encoding="utf-8")
+                cm: contextlib.AbstractContextManager[IO[str]] = open(f, encoding="utf-8")
             except OSError:
                 # /etc/resolv.conf doesn't exist, can't be read, etc.
                 raise NoResolverConfiguration(f"cannot open {f}")
@@ -1053,13 +1091,13 @@ class BaseResolver:
 
     def read_registry(self) -> None:  # pragma: no cover
         """Extract resolver configuration from the Windows registry."""
-        try:
-            info = dns.win32util.get_dns_info()  # type: ignore
+        if sys.platform == "win32":
+            info = dns.win32util.get_dns_info()
             if info.domain is not None:
                 self.domain = info.domain
             self.nameservers = info.nameservers
             self.search = info.search
-        except AttributeError:
+        else:
             raise NotImplementedError
 
     def _compute_timeout(
@@ -1093,7 +1131,7 @@ class BaseResolver:
         # rules without requiring the Internet.
         if search is None:
             search = self.use_search_by_default
-        qnames_to_try = []
+        qnames_to_try:list[dns.name.Name] = []
         if qname.is_absolute():
             qnames_to_try.append(qname)
         else:
@@ -1102,7 +1140,7 @@ class BaseResolver:
                 if len(self.search) > 0:
                     # There is a search list, so use it exclusively
                     search_list = self.search[:]
-                elif self.domain != dns.name.root and self.domain is not None:
+                elif self.domain != dns.name.root:
                     # We have some notion of a domain that isn't the root, so
                     # use it as the search list.
                     search_list = [self.domain]
@@ -1131,7 +1169,7 @@ class BaseResolver:
         self,
         keyring: Any,
         keyname: dns.name.Name | str | None = None,
-        algorithm: dns.name.Name | str = dns.tsig.default_algorithm,
+        algorithm: dns.tsig.Algorithm = dns.tsig.default_algorithm,
     ) -> None:
         """Add a TSIG signature to each query.
 
@@ -1191,7 +1229,7 @@ class BaseResolver:
         nameserver_ports: dict[str, int],
         default_port: int,
     ) -> list[dns.nameserver.Nameserver]:
-        enriched_nameservers = []
+        enriched_nameservers:list[dns.nameserver.Nameserver] = []
         if isinstance(nameservers, list | tuple):
             for nameserver in nameservers:
                 enriched_nameserver: dns.nameserver.Nameserver
@@ -1727,6 +1765,7 @@ def zone_for_name(
             if response:
                 for rrs in response.authority:
                     if rrs.rdtype == dns.rdatatype.SOA and rrs.rdclass == rdclass:
+                        assert rrs.name is not None
                         nr, _, _ = rrs.name.fullcompare(name)
                         if nr == dns.name.NAMERELN_SUPERDOMAIN:
                             # We're doing a proper superdomain check as
@@ -1832,6 +1871,8 @@ _protocols_for_socktype: dict[Any, list[Any]] = {
 }
 
 _resolver: Resolver | None = None
+# host: bytes | str | None, port: bytes | str | int | None, family: int = 0, type: int = 0, proto: int = 0, flags: int = 0
+#) -> list[tuple[AddressFamily, SocketKind, int, str, tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes]]]: ...
 _original_getaddrinfo = socket.getaddrinfo
 _original_getnameinfo = socket.getnameinfo
 _original_getfqdn = socket.getfqdn
@@ -1841,8 +1882,13 @@ _original_gethostbyaddr = socket.gethostbyaddr
 
 
 def _getaddrinfo(
-    host=None, service=None, family=socket.AF_UNSPEC, type=0, proto=0, flags=0
-):
+    host:str|None=None,
+    service:bytes|str|int|None=None,
+    family:int=socket.AF_UNSPEC,
+    type:int=0,
+    proto:int=0,
+    flags:int=0,
+) -> Sequence[tuple[int, socket.SocketKind | int, int, str, tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes]]]:
     if flags & socket.AI_NUMERICHOST != 0:
         # Short circuit directly into the system's getaddrinfo().  We're
         # not adding any value in this case, and this avoids infinite loops
@@ -1864,7 +1910,7 @@ def _getaddrinfo(
         )
     if host is None and service is None:
         raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
-    addrs = []
+    # addrs = []
     canonical_name = None  # pylint: disable=redefined-outer-name
     # Is host None or an address literal?  If so, use the system's
     # getaddrinfo().
@@ -1906,7 +1952,7 @@ def _getaddrinfo(
                 pass
     if port is None:
         raise socket.gaierror(socket.EAI_NONAME, "Name or service not known")
-    tuples = []
+    tuples:list[tuple[int, socket.SocketKind | int, int, str, tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes]]] = []
     if type == 0:
         socktypes = [socket.SOCK_DGRAM, socket.SOCK_STREAM]
     else:
@@ -1926,7 +1972,7 @@ def _getaddrinfo(
     return tuples
 
 
-def _getnameinfo(sockaddr, flags=0):
+def _getnameinfo(sockaddr:tuple[str, int] | tuple[str, int, int, int], flags: int = 0) -> tuple[str, str]:
     host = sockaddr[0]
     port = sockaddr[1]
     if len(sockaddr) == 4:
@@ -1969,7 +2015,7 @@ def _getnameinfo(sockaddr, flags=0):
     return (hostname, service)
 
 
-def _getfqdn(name=None):
+def _getfqdn(name: str | None = None) -> str:
     if name is None:
         name = socket.gethostname()
     try:
@@ -1981,24 +2027,25 @@ def _getfqdn(name=None):
     return name
 
 
-def _gethostbyname(name):
+def _gethostbyname(name: str, /) -> str:
     return _gethostbyname_ex(name)[2][0]
 
 
-def _gethostbyname_ex(name):
-    aliases = []
-    addresses = []
+def _gethostbyname_ex(name: str, /) -> tuple[str, list[Any], list[str]]:
+    aliases:list[Any] = []
+    addresses:list[str] = []
     tuples = _getaddrinfo(
         name, 0, socket.AF_INET, socket.SOCK_STREAM, socket.SOL_TCP, socket.AI_CANONNAME
     )
     canonical = tuples[0][3]
     for item in tuples:
-        addresses.append(item[4][0])
+        address = item[4][0]
+        assert isinstance(address, str)
+        addresses.append(address)
     # XXX we just ignore aliases
     return (canonical, aliases, addresses)
 
-
-def _gethostbyaddr(ip):
+def _gethostbyaddr(ip: str, /) -> tuple[str, list[str], list[str]]:
     try:
         dns.ipv6.inet_aton(ip)
         sockaddr = (ip, 80, 0, 0)
@@ -2011,8 +2058,8 @@ def _gethostbyaddr(ip):
         sockaddr = (ip, 80)
         family = socket.AF_INET
     name, _ = _getnameinfo(sockaddr, socket.NI_NAMEREQD)
-    aliases = []
-    addresses = []
+    aliases:list[str] = []
+    addresses:list[str] = []
     tuples = _getaddrinfo(
         name, 0, family, socket.SOCK_STREAM, socket.SOL_TCP, socket.AI_CANONNAME
     )

@@ -236,7 +236,7 @@ class Renderer:
 
         self._set_section(section)
         with self._track_size():
-            n = rrset.to_wire(self.output, self.compress, self.origin, **kw)
+            n = rrset.to_wire(file=self.output, compress=self.compress, origin=self.origin, **kw)
         self.counts[section] += n
 
     def add_rdataset(
@@ -255,7 +255,7 @@ class Renderer:
 
         self._set_section(section)
         with self._track_size():
-            n = rdataset.to_wire(name, self.output, self.compress, self.origin, **kw)
+            n = rdataset.to_wire(name=name, file=self.output, compress=self.compress, origin=self.origin, **kw)
         self.counts[section] += n
 
     def add_opt(

@@ -18,7 +18,7 @@
 """TXT-like base class."""
 
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Self, IO
 
 import dns.exception
 import dns.immutable
@@ -51,7 +51,7 @@ class TXTBase(dns.rdata.Rdata):
         *strings*, a tuple of ``bytes``
         """
         super().__init__(rdclass, rdtype)
-        self.strings: tuple[bytes] = self._as_tuple(
+        self.strings: tuple[bytes, ...] = self._as_tuple(
             strings, lambda x: self._as_bytes(x, True, 255)
         )
         if len(self.strings) == 0:
@@ -61,7 +61,7 @@ class TXTBase(dns.rdata.Rdata):
         self,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
-        **kw: dict[str, Any],
+        **kw: Any,
     ) -> str:
         txt = ""
         prefix = ""
@@ -79,8 +79,8 @@ class TXTBase(dns.rdata.Rdata):
         origin: dns.name.Name | None = None,
         relativize: bool = True,
         relativize_to: dns.name.Name | None = None,
-    ) -> dns.rdata.Rdata:
-        strings = []
+    ) -> Self:
+        strings:list[str] = []
         for token in tok.get_remaining():
             token = token.unescape_to_bytes()
             # The 'if' below is always true in the current code, but we
@@ -96,7 +96,13 @@ class TXTBase(dns.rdata.Rdata):
             raise dns.exception.UnexpectedEnd
         return cls(rdclass, rdtype, strings)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(
+        self,
+        file: IO[bytes],
+        compress=None,
+        origin=None,
+        canonicalize=False,
+    ) -> None:
         for s in self.strings:
             with dns.renderer.prefixed_length(file, 1):
                 file.write(s)

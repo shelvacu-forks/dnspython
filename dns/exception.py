@@ -21,6 +21,7 @@ Dnspython modules may also define their own exceptions, which will
 always be subclasses of ``DNSException``.
 """
 
+from collections.abc import Mapping
 from typing import overload, Any, Literal
 
 
@@ -50,7 +51,7 @@ class DNSException(Exception):
     msg: str | None = None  # non-parametrized message
     supp_kwargs: set[str] = set()  # accepted parameters for _fmt_kwargs (sanity check)
     fmt: str | None = None  # message parametrized with results from _fmt_kwargs
-    kwargs: dict[str, Any]
+    kwargs: Mapping[str, Any]
 
     @overload
     def __init__(self, *args: Any) -> None: ...
@@ -81,14 +82,14 @@ class DNSException(Exception):
                 kwargs
             ), "keyword arguments are mutually exclusive with positional args"
 
-    def _check_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+    def _check_kwargs(self, **kwargs: Any) -> Mapping[str, Any]:
         if kwargs:
             assert (
                 set(kwargs.keys()) == self.supp_kwargs
             ), f"following set of keyword args is required: {self.supp_kwargs}"
         return kwargs
 
-    def _fmt_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+    def _fmt_kwargs(self, **kwargs: Any) -> Mapping[str, Any]:
         """Format kwargs before printing them.
 
         Resulting dictionary has to have keys necessary for str.format call

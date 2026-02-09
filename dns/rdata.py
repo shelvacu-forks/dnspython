@@ -26,7 +26,7 @@ import itertools
 import random
 from collections.abc import Iterable, Callable
 from importlib import import_module
-from typing import Any, Literal, cast, IO, Self
+from typing import Any, Literal, cast, IO, Self, overload
 from typing_extensions import Buffer
 
 import dns.exception
@@ -488,7 +488,7 @@ class Rdata:
     @classmethod
     def _as_bytes(
         cls,
-        value: Any,
+        value: str | bytearray | bytes | Any,
         encode: bool = False,
         max_length: int | None = None,
         empty_ok: bool = True,

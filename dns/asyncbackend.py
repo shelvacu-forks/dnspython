@@ -8,6 +8,7 @@ from dns._asyncbackend import (  # noqa: F401  lgtm[py/unused-import]
     DatagramSocket,
     Socket,
     StreamSocket,
+    PeerCertDict,
 )
 
 # pylint: enable=unused-import

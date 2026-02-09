@@ -96,7 +96,7 @@ def to_address(
     elif name.is_subdomain(v6_origin):
         name = name.relativize(v6_origin)
         labels = list(reversed(name.labels))
-        parts = []
+        parts:list[bytes] = []
         for i in range(0, len(labels), 4):
             parts.append(b"".join(labels[i : i + 4]))
         text = b":".join(parts)

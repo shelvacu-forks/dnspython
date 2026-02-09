@@ -10,7 +10,7 @@ class Nameserver:
     def __init__(self):
         pass
 
-    def __str__(self):
+    def __str__(self) -> str:
         raise NotImplementedError  # pragma: no cover
 
     def kind(self) -> str:

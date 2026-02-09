@@ -140,6 +140,7 @@ class Inbound:
             if self.incremental:
                 assert self.soa_rdataset is not None
                 soa = cast(dns.rdtypes.ANY.SOA.SOA, self.soa_rdataset[0])
+                assert self.serial is not None
                 if soa.serial == self.serial:
                     #
                     # We're already up-to-date.

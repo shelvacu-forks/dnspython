@@ -579,14 +579,20 @@ class Reader:
             raise ex.with_traceback(tb) from None
 
 
+_RdatasetsKey = tuple[dns.name.Name | None, dns.rdatatype.RdataType, dns.rdatatype.RdataType | None]
 class RRsetsReaderTransaction(dns.transaction.Transaction):
-    rdatasets:dict[tuple[dns.name.Name, dns.rdatatype.RdataType, dns.rdatatype.RdataType], dns.rdataset.Rdataset]
+    rdatasets:dict[_RdatasetsKey, dns.rdataset.Rdataset]
     def __init__(self, manager: dns.transaction.TransactionManager, replacement: bool, read_only: bool):
         assert not read_only
         super().__init__(manager, replacement, read_only)
         self.rdatasets = {}
 
-    def _get_rdataset(self, name: dns.name.Name, rdtype: dns.rdatatype.RdataType, covers: dns.rdatatype.RdataType) -> dns.rdataset.Rdataset | None:
+    def _get_rdataset(
+        self,
+        name: dns.name.Name | None,
+        rdtype: dns.rdatatype.RdataType,
+        covers: dns.rdatatype.RdataType | None,
+    ) -> dns.rdataset.Rdataset | None:
         return self.rdatasets.get((name, rdtype, covers))
 
     def _get_node(self, name: dns.name.Name) -> dns.node.Node | None:
@@ -605,7 +611,7 @@ class RRsetsReaderTransaction(dns.transaction.Transaction):
 
     def _delete_name(self, name: dns.name.Name):
         # First remove any changes involving the name
-        remove:list[tuple[dns.name.Name, dns.rdatatype.RdataType, dns.rdatatype.RdataType]] = []
+        remove:list[_RdatasetsKey] = []
         for key in self.rdatasets:
             if key[0] == name:
                 remove.append(key)

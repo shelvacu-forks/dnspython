@@ -933,7 +933,7 @@ class ImmutableVersionedNode(VersionedNode):
         self,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
+        covers: dns.rdatatype.RdataType | None = dns.rdatatype.NONE,
         create: bool = False,
     ) -> dns.rdataset.Rdataset:
         if create:
@@ -944,7 +944,7 @@ class ImmutableVersionedNode(VersionedNode):
         self,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
+        covers: dns.rdatatype.RdataType | None = dns.rdatatype.NONE,
         create: bool = False,
     ) -> dns.rdataset.Rdataset | None:
         if create:
@@ -955,7 +955,7 @@ class ImmutableVersionedNode(VersionedNode):
         self,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
+        covers: dns.rdatatype.RdataType | None = dns.rdatatype.NONE,
     ) -> Never:
         raise TypeError("immutable")
 
@@ -1222,9 +1222,9 @@ class Transaction(dns.transaction.Transaction):
             for rdataset in node:
                 yield (name, rdataset)
 
-    def _iterate_names(self) -> Iterable[dns.name.Name]:
+    def _iterate_names(self) -> Iterator[dns.name.Name]:
         assert self.version is not None
-        return self.version.keys()
+        return iter(self.version.keys())
 
     def _get_node(self, name: dns.name.Name) -> dns.node.Node | None:
         assert self.version is not None
