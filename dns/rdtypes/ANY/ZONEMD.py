@@ -43,7 +43,7 @@ class ZONEMD(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass, rdtype, tok, origin=None, relativize=True, relativize_to=None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
     ):
         serial = tok.get_uint32()
         scheme = tok.get_uint8()

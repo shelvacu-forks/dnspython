@@ -39,7 +39,7 @@ class DHCID(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass, rdtype, tok, origin=None, relativize=True, relativize_to=None
+        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to = dns.name.Name | None = None
     ):
         b64 = tok.concatenate_remaining_identifiers().encode()
         data = base64.b64decode(b64)
