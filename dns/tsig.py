@@ -25,6 +25,7 @@ import struct
 import enum
 import abc
 from collections.abc import Callable, Buffer
+import typing
 from typing import Protocol, Any, overload, Literal, cast, TypeVar, Generic, TypeIs
 
 import dns.exception
@@ -114,8 +115,14 @@ HMAC_SHA512 = Algorithm.HMAC_SHA512
 HMAC_SHA512_256 = Algorithm.HMAC_SHA512_256 
 GSS_TSIG = Algorithm.GSS_TSIG 
 
-type AlgorithmGSS = Literal[Algorithm.GSS_TSIG]
-type AlgorithmHMAC = Literal[Algorithm.HMAC_MD5, Algorithm.HMAC_SHA1, Algorithm.HMAC_SHA224, Algorithm.HMAC_SHA256, Algorithm.HMAC_SHA256_128, Algorithm.HMAC_SHA384, Algorithm.HMAC_SHA384_192, Algorithm.HMAC_SHA512, Algorithm.HMAC_SHA512_256]
+AlgorithmGSS = Literal[Algorithm.GSS_TSIG]
+AlgorithmHMAC = Literal[Algorithm.HMAC_MD5, Algorithm.HMAC_SHA1, Algorithm.HMAC_SHA224, Algorithm.HMAC_SHA256, Algorithm.HMAC_SHA256_128, Algorithm.HMAC_SHA384, Algorithm.HMAC_SHA384_192, Algorithm.HMAC_SHA512, Algorithm.HMAC_SHA512_256]
+
+def is_algorithm_gss(obj: Any) -> TypeIs[AlgorithmGSS]:
+    return isinstance(obj, Algorithm) and (obj in typing.get_args(AlgorithmGSS))
+
+def is_algorithm_hmac(obj: Any) -> TypeIs[AlgorithmHMAC]:
+    return isinstance(obj, Algorithm) and (obj in typing.get_args(AlgorithmHMAC))
 
 default_algorithm:Algorithm = HMAC_SHA256
 

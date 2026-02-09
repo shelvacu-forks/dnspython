@@ -989,15 +989,17 @@ class Version:
     def _validate_name(self, name: dns.name.Name) -> dns.name.Name:
         return _validate_name(name, self.origin, self.zone.relativize)
 
-    def get_node(self, name: dns.name.Name) -> dns.node.Node | None:
+    def get_node(self, name: dns.name.Name | None) -> dns.node.Node | None:
+        if name is None:
+            return None
         name = self._validate_name(name)
         return self.nodes.get(name)
 
     def get_rdataset(
         self,
-        name: dns.name.Name,
+        name: dns.name.Name | None,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType,
+        covers: dns.rdatatype.RdataType | None,
     ) -> dns.rdataset.Rdataset | None:
         node = self.get_node(name)
         if node is None:
@@ -1140,9 +1142,9 @@ class Transaction(dns.transaction.Transaction):
 
     def _get_rdataset(
             self,
-            name: dns.name.Name,
+            name: dns.name.Name | None,
             rdtype: dns.rdatatype.RdataType,
-            covers: dns.rdatatype.RdataType,
+            covers: dns.rdatatype.RdataType | None,
         ) -> dns.rdataset.Rdataset | None:
         assert self.version is not None
         return self.version.get_rdataset(name, rdtype, covers)

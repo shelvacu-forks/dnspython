@@ -168,7 +168,7 @@ class Node:
         self,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
+        covers: dns.rdatatype.RdataType | None = dns.rdatatype.NONE,
         create: bool = False,
     ) -> dns.rdataset.Rdataset:
         """Find an rdataset matching the specified properties in the
@@ -209,7 +209,7 @@ class Node:
         self,
         rdclass: dns.rdataclass.RdataClass,
         rdtype: dns.rdatatype.RdataType,
-        covers: dns.rdatatype.RdataType = dns.rdatatype.NONE,
+        covers: dns.rdatatype.RdataType | None = dns.rdatatype.NONE,
         create: bool = False,
     ) -> dns.rdataset.Rdataset | None:
         """Get an rdataset matching the specified properties in the
