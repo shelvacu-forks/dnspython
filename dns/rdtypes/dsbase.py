@@ -52,7 +52,7 @@ class DSBase(dns.rdata.Rdata):
             if self.digest_type == 0:  # reserved, RFC 3658 Sec. 2.4
                 raise ValueError("digest type 0 is reserved")
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         kw = kw.copy()
         chunksize = kw.pop("chunksize", 128)
         digest = dns.rdata._hexify(

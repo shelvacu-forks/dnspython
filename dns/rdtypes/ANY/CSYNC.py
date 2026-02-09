@@ -44,7 +44,7 @@ class CSYNC(dns.rdata.Rdata):
             windows = Bitmap(windows)
         self.windows = tuple(windows.windows)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         text = Bitmap(self.windows).to_text()
         return f"{self.serial} {self.flags}{text}"
 

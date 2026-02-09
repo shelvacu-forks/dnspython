@@ -34,7 +34,7 @@ class RP(dns.rdata.Rdata):
         self.mbox = self._as_name(mbox)
         self.txt = self._as_name(txt)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         mbox = self.mbox.choose_relativity(origin, relativize)
         txt = self.txt.choose_relativity(origin, relativize)
         return f"{str(mbox)} {str(txt)}"

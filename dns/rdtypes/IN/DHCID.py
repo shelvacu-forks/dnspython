@@ -34,7 +34,7 @@ class DHCID(dns.rdata.Rdata):
         super().__init__(rdclass, rdtype)
         self.data = self._as_bytes(data)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return dns.rdata._base64ify(self.data, **kw)  # pyright: ignore
 
     @classmethod

@@ -42,7 +42,7 @@ class EUIBase(dns.rdata.Rdata):
                 f"EUI{self.byte_len * 8} rdata has to have {self.byte_len} bytes"
             )
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return dns.rdata._hexify(self.eui, chunksize=2, separator=b"-", **kw)
 
     @classmethod

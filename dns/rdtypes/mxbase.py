@@ -37,7 +37,7 @@ class MXBase(dns.rdata.Rdata):
         self.preference = self._as_uint16(preference)
         self.exchange = self._as_name(exchange)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         exchange = self.exchange.choose_relativity(origin, relativize)
         return f"{self.preference} {exchange}"
 

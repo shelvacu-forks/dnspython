@@ -39,7 +39,7 @@ class CAA(dns.rdata.Rdata):
             raise ValueError("tag is not alphanumeric")
         self.value = self._as_bytes(value)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return f'{self.flags} {dns.rdata._escapify(self.tag)} "{dns.rdata._escapify(self.value)}"'
 
     @classmethod

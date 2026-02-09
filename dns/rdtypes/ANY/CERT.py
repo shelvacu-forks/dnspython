@@ -82,7 +82,7 @@ class CERT(dns.rdata.Rdata):
         self.algorithm = self._as_uint8(algorithm)
         self.certificate = self._as_bytes(certificate)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         certificate_type = _ctype_to_text(self.certificate_type)
         algorithm = dns.dnssectypes.Algorithm.to_text(self.algorithm)
         certificate = dns.rdata._base64ify(self.certificate, **kw)  # pyright: ignore

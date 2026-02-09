@@ -47,7 +47,7 @@ class IPSECKEY(dns.rdata.Rdata):
         self.gateway = gateway.gateway
         self.key = self._as_bytes(key)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         gateway = Gateway(self.gateway_type, self.gateway).to_text(origin, relativize)
         key = dns.rdata._base64ify(self.key, **kw)  # pyright: ignore
         return f"{self.precedence} {self.gateway_type} {self.algorithm} {gateway} {key}"

@@ -74,7 +74,7 @@ class GPOS(dns.rdata.Rdata):
         if flong < -180.0 or flong > 180.0:
             raise dns.exception.FormError("bad longitude")
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return (
             f"{self.latitude.decode()} {self.longitude.decode()} "
             f"{self.altitude.decode()}"

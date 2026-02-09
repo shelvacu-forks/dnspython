@@ -50,7 +50,7 @@ class NAPTR(dns.rdata.Rdata):
         self.preference = self._as_uint16(preference)
         self.replacement = self._as_name(replacement)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         replacement = self.replacement.choose_relativity(origin, relativize)
         return (
             f"{self.order} {self.preference} "

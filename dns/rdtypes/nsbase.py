@@ -33,7 +33,7 @@ class NSBase(dns.rdata.Rdata):
         super().__init__(rdclass, rdtype)
         self.target = self._as_name(target)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         target = self.target.choose_relativity(origin, relativize)
         return str(target)
 

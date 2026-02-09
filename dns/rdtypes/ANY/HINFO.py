@@ -36,7 +36,7 @@ class HINFO(dns.rdata.Rdata):
         self.cpu = self._as_bytes(cpu, True, 255)
         self.os = self._as_bytes(os, True, 255)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return f'"{dns.rdata._escapify(self.cpu)}" "{dns.rdata._escapify(self.os)}"'
 
     @classmethod

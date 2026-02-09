@@ -35,7 +35,7 @@ class X25(dns.rdata.Rdata):
         super().__init__(rdclass, rdtype)
         self.address = self._as_bytes(address, True, 255)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return f'"{dns.rdata._escapify(self.address)}"'
 
     @classmethod

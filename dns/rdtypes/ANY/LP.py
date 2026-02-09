@@ -19,7 +19,7 @@ class LP(dns.rdata.Rdata):
         self.preference = self._as_uint16(preference)
         self.fqdn = self._as_name(fqdn)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         fqdn = self.fqdn.choose_relativity(origin, relativize)
         return f"{self.preference} {fqdn}"
 

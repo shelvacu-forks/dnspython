@@ -33,7 +33,7 @@ class ZONEMD(dns.rdata.Rdata):
         if hasher and hasher().digest_size != len(self.digest):
             raise ValueError("digest length inconsistent with hash algorithm")
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         kw = kw.copy()
         chunksize = kw.pop("chunksize", 128)
         digest = dns.rdata._hexify(

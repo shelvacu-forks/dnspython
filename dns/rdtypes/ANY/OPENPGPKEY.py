@@ -33,7 +33,7 @@ class OPENPGPKEY(dns.rdata.Rdata):
         super().__init__(rdclass, rdtype)
         self.key = self._as_bytes(key)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return dns.rdata._base64ify(self.key, chunksize=None, **kw)  # pyright: ignore
 
     @classmethod

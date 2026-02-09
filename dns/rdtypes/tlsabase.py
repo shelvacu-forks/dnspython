@@ -50,7 +50,7 @@ class TLSABase(dns.rdata.Rdata):
         self.mtype = self._as_uint8(mtype)
         self.cert = self._as_bytes(cert)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         kw = kw.copy()
         chunksize = kw.pop("chunksize", 128)
         cert = dns.rdata._hexify(

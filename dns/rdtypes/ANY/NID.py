@@ -26,7 +26,7 @@ class NID(dns.rdata.Rdata):
             dns.rdtypes.util.parse_formatted_hex(nodeid, 4, 4, ":")
             self.nodeid = nodeid
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return f"{self.preference} {self.nodeid}"
 
     @classmethod

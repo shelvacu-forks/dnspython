@@ -58,7 +58,7 @@ class TKEY(dns.rdata.Rdata):
         self.key = self._as_bytes(key)
         self.other = self._as_bytes(other)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         _algorithm = self.algorithm.choose_relativity(origin, relativize)
         key = dns.rdata._base64ify(self.key, 0)
         other = ""

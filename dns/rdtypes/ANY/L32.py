@@ -20,7 +20,7 @@ class L32(dns.rdata.Rdata):
         self.preference = self._as_uint16(preference)
         self.locator32 = self._as_ipv4_address(locator32)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         return f"{self.preference} {self.locator32}"
 
     @classmethod

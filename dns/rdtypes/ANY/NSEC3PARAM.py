@@ -36,7 +36,7 @@ class NSEC3PARAM(dns.rdata.Rdata):
         self.iterations = self._as_uint16(iterations)
         self.salt = self._as_bytes(salt, True, 255)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         if self.salt == b"":
             salt = "-"
         else:

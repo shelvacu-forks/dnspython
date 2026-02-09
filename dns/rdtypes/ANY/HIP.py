@@ -40,7 +40,7 @@ class HIP(dns.rdata.Rdata):
         self.key = self._as_bytes(key, True)
         self.servers = self._as_tuple(servers, self._as_name)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         hit = binascii.hexlify(self.hit).decode()
         key = base64.b64encode(self.key).replace(b"\n", b"").decode()
         text = ""

@@ -37,7 +37,7 @@ class SSHFP(dns.rdata.Rdata):
         self.fp_type = self._as_uint8(fp_type)
         self.fingerprint = self._as_bytes(fingerprint, True)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         kw = kw.copy()
         chunksize = kw.pop("chunksize", 128)
         fingerprint = dns.rdata._hexify(

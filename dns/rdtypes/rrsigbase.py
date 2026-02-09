@@ -93,7 +93,7 @@ class RRSIGBase(dns.rdata.Rdata):
     def covers(self):
         return self.type_covered
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         ctext = dns.rdatatype.to_text(self.type_covered)
         expiration = posixtime_to_sigtime(self.expiration)
         inception = posixtime_to_sigtime(self.inception)

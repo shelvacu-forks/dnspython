@@ -36,7 +36,7 @@ class A(dns.rdata.Rdata):
         self.domain = self._as_name(domain)
         self.address = self._as_uint16(address)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         domain = self.domain.choose_relativity(origin, relativize)
         return f"{domain} {self.address:o}"
 

@@ -43,7 +43,7 @@ class SOA(dns.rdata.Rdata):
         self.expire = self._as_ttl(expire)
         self.minimum = self._as_ttl(minimum)
 
-    def to_text(self, origin=None, relativize=True, **kw):
+    def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         mname = self.mname.choose_relativity(origin, relativize)
         rname = self.rname.choose_relativity(origin, relativize)
         return f"{mname} {rname} {self.serial} {self.refresh} {self.retry} {self.expire} {self.minimum}"
