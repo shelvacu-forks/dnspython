@@ -281,7 +281,7 @@ class LOC(dns.rdata.Rdata):
 
         return cls(rdclass, rdtype, latitude, longitude, altitude, size, hprec, vprec)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         milliseconds = (
             self.latitude[0] * 3600000
             + self.latitude[1] * 60000

@@ -71,7 +71,7 @@ class DSBase(dns.rdata.Rdata):
         digest = binascii.unhexlify(digest)
         return cls(rdclass, rdtype, key_tag, algorithm, digest_type, digest)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         header = struct.pack("!HBB", self.key_tag, self.algorithm, self.digest_type)
         file.write(header)
         file.write(self.digest)

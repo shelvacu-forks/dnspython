@@ -86,7 +86,7 @@ class WKS(dns.rdata.Rdata):
         bitmap = dns.rdata._truncate_bitmap(bitmap)
         return cls(rdclass, rdtype, address, protocol, bitmap)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         file.write(dns.ipv4.inet_aton(self.address))
         protocol = struct.pack("!B", self.protocol)
         file.write(protocol)

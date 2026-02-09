@@ -52,7 +52,7 @@ class PX(dns.rdata.Rdata):
         mapx400 = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, preference, map822, mapx400)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         pref = struct.pack("!H", self.preference)
         file.write(pref)
         self.map822.to_wire(file, None, origin, canonicalize)

@@ -23,5 +23,5 @@ import dns.rdtypes.nsbase
 class DNAME(dns.rdtypes.nsbase.UncompressedNS):
     """DNAME record"""
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.target.to_wire(file, None, origin, canonicalize)

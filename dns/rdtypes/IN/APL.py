@@ -116,7 +116,7 @@ class APL(dns.rdata.Rdata):
 
         return cls(rdclass, rdtype, items)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         for item in self.items:
             item.to_wire(file)
 

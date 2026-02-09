@@ -45,7 +45,7 @@ class X25(dns.rdata.Rdata):
         address = tok.get_string()
         return cls(rdclass, rdtype, address)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         l = len(self.address)
         assert l < 256
         file.write(struct.pack("!B", l))

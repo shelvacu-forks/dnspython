@@ -52,7 +52,7 @@ class ZONEMD(dns.rdata.Rdata):
         digest = binascii.unhexlify(digest)
         return cls(rdclass, rdtype, serial, scheme, hash_algorithm, digest)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         header = struct.pack("!IBB", self.serial, self.scheme, self.hash_algorithm)
         file.write(header)
         file.write(self.digest)

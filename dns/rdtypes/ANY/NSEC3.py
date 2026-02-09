@@ -99,7 +99,7 @@ class NSEC3(dns.rdata.Rdata):
         bitmap = Bitmap.from_text(tok)
         return cls(rdclass, rdtype, algorithm, flags, iterations, salt, next, bitmap)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         l = len(self.salt)
         file.write(struct.pack("!BBHB", self.algorithm, self.flags, self.iterations, l))
         file.write(self.salt)

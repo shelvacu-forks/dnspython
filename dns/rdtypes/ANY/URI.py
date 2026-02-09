@@ -55,7 +55,7 @@ class URI(dns.rdata.Rdata):
             raise dns.exception.SyntaxError("URI target must be a string")
         return cls(rdclass, rdtype, priority, weight, target.value)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         two_ints = struct.pack("!HH", self.priority, self.weight)
         file.write(two_ints)
         file.write(self.target)

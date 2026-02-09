@@ -31,7 +31,7 @@ class LP(dns.rdata.Rdata):
         fqdn = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, preference, fqdn)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         file.write(struct.pack("!H", self.preference))
         self.fqdn.to_wire(file, compress, origin, canonicalize)
 

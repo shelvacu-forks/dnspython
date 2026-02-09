@@ -48,7 +48,7 @@ class A(dns.rdata.Rdata):
         address = tok.get_uint16(base=8)
         return cls(rdclass, rdtype, domain, address)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.domain.to_wire(file, compress, origin, canonicalize)
         pref = struct.pack("!H", self.address)
         file.write(pref)

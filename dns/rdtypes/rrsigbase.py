@@ -132,7 +132,7 @@ class RRSIGBase(dns.rdata.Rdata):
             signature,
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         header = struct.pack(
             "!HBBIIIH",
             self.type_covered,

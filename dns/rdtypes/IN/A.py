@@ -42,7 +42,7 @@ class A(dns.rdata.Rdata):
         address = tok.get_identifier()
         return cls(rdclass, rdtype, address)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         file.write(dns.ipv4.inet_aton(self.address))
 
     @classmethod

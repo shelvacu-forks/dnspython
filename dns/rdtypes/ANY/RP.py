@@ -47,7 +47,7 @@ class RP(dns.rdata.Rdata):
         txt = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, mbox, txt)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.mbox.to_wire(file, None, origin, canonicalize)
         self.txt.to_wire(file, None, origin, canonicalize)
 

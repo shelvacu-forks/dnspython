@@ -31,7 +31,7 @@ class L32(dns.rdata.Rdata):
         nodeid = tok.get_identifier()
         return cls(rdclass, rdtype, preference, nodeid)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         file.write(struct.pack("!H", self.preference))
         file.write(dns.ipv4.inet_aton(self.locator32))
 

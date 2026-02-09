@@ -99,7 +99,7 @@ class CERT(dns.rdata.Rdata):
         certificate = base64.b64decode(b64)
         return cls(rdclass, rdtype, certificate_type, key_tag, algorithm, certificate)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         prefix = struct.pack(
             "!HHB", self.certificate_type, self.key_tag, self.algorithm
         )

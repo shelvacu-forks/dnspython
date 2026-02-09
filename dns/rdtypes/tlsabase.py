@@ -30,8 +30,20 @@ class TLSABase(dns.rdata.Rdata):
     # see: RFC 6698
 
     __slots__ = ["usage", "selector", "mtype", "cert"]
+    usage: int
+    selector: int
+    mtype: int
+    cert: bytes
 
-    def __init__(self, rdclass, rdtype, usage, selector, mtype, cert):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        usage: int,
+        selector: int,
+        mtype: int,
+        cert: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.usage = self._as_uint8(usage)
         self.selector = self._as_uint8(selector)
@@ -57,7 +69,7 @@ class TLSABase(dns.rdata.Rdata):
         cert = binascii.unhexlify(cert)
         return cls(rdclass, rdtype, usage, selector, mtype, cert)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         header = struct.pack("!BBB", self.usage, self.selector, self.mtype)
         file.write(header)
         file.write(self.cert)

@@ -60,7 +60,7 @@ class DSYNC(dns.rdata.Rdata):
         target = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, rrtype, scheme, port, target)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         three_ints = struct.pack("!HBH", self.rrtype, self.scheme, self.port)
         file.write(three_ints)
         self.target.to_wire(file, None, origin, False)

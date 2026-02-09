@@ -44,7 +44,7 @@ class NSBase(dns.rdata.Rdata):
         target = tok.get_name(origin, relativize, relativize_to)
         return cls(rdclass, rdtype, target)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.target.to_wire(file, compress, origin, canonicalize)
 
     @classmethod
@@ -59,5 +59,5 @@ class UncompressedNS(NSBase):
     is not compressed when convert to DNS wire format, and whose
     digestable form is not downcased."""
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.target.to_wire(file, None, origin, False)

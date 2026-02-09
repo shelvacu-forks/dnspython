@@ -57,7 +57,7 @@ class NSEC3PARAM(dns.rdata.Rdata):
             salt = binascii.unhexlify(salt.encode())
         return cls(rdclass, rdtype, algorithm, flags, iterations, salt)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         l = len(self.salt)
         file.write(struct.pack("!BBHB", self.algorithm, self.flags, self.iterations, l))
         file.write(self.salt)

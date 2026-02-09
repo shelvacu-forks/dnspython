@@ -54,7 +54,7 @@ class NSEC(dns.rdata.Rdata):
         windows = Bitmap.from_text(tok)
         return cls(rdclass, rdtype, next, windows)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         # Note that NSEC downcasing, originally mandated by RFC 4034
         # section 6.2 was removed by RFC 6840 section 5.1.
         self.next.to_wire(file, None, origin, False)

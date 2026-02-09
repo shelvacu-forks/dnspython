@@ -47,7 +47,7 @@ class HINFO(dns.rdata.Rdata):
         os = tok.get_string(max_length=255)
         return cls(rdclass, rdtype, cpu, os)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         l = len(self.cpu)
         assert l < 256
         file.write(struct.pack("!B", l))

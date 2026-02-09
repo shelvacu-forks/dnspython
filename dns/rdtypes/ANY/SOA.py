@@ -63,7 +63,7 @@ class SOA(dns.rdata.Rdata):
             rdclass, rdtype, mname, rname, serial, refresh, retry, expire, minimum
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.mname.to_wire(file, compress, origin, canonicalize)
         self.rname.to_wire(file, compress, origin, canonicalize)
         five_ints = struct.pack(

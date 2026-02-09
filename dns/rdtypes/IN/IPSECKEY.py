@@ -68,7 +68,7 @@ class IPSECKEY(dns.rdata.Rdata):
             rdclass, rdtype, precedence, gateway_type, algorithm, gateway.gateway, key
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         header = struct.pack("!BBB", self.precedence, self.gateway_type, self.algorithm)
         file.write(header)
         Gateway(self.gateway_type, self.gateway).to_wire(

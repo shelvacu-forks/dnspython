@@ -74,7 +74,7 @@ class NAPTR(dns.rdata.Rdata):
             rdclass, rdtype, order, preference, flags, service, regexp, replacement
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         two_ints = struct.pack("!HH", self.order, self.preference)
         file.write(two_ints)
         _write_string(file, self.flags)

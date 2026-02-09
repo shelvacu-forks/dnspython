@@ -44,7 +44,7 @@ class OPENPGPKEY(dns.rdata.Rdata):
         key = base64.b64decode(b64)
         return cls(rdclass, rdtype, key)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         file.write(self.key)
 
     @classmethod

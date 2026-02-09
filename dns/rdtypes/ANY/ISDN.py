@@ -57,7 +57,7 @@ class ISDN(dns.rdata.Rdata):
             subaddress = ""
         return cls(rdclass, rdtype, address, subaddress)
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         l = len(self.address)
         assert l < 256
         file.write(struct.pack("!B", l))

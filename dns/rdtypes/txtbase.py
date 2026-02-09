@@ -99,17 +99,23 @@ class TXTBase(dns.rdata.Rdata):
     def _to_wire(
         self,
         file: IO[bytes],
-        compress=None,
-        origin=None,
-        canonicalize=False,
+        compress: dns.name.CompressType | None = None,
+        origin: dns.name.Name | None = None,
+        canonicalize: bool = False,
     ) -> None:
         for s in self.strings:
             with dns.renderer.prefixed_length(file, 1):
                 file.write(s)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
-        strings = []
+    def from_wire_parser(
+        cls,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        parser: dns.wire.Parser,
+        origin: dns.name.Name | None = None,
+    ) -> Self:
+        strings:list[bytes] = []
         while parser.remaining() > 0:
             s = parser.get_counted_bytes()
             strings.append(s)

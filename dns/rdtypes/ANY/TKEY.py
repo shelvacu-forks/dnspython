@@ -84,7 +84,7 @@ class TKEY(dns.rdata.Rdata):
             rdclass, rdtype, algorithm, inception, expiration, mode, error, key, other
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         self.algorithm.to_wire(file, compress, origin)
         file.write(
             struct.pack("!IIHH", self.inception, self.expiration, self.mode, self.error)

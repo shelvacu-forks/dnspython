@@ -72,7 +72,7 @@ class AMTRELAY(dns.rdata.Rdata):
             rdclass, rdtype, precedence, discovery_optional, relay_type, relay.relay
         )
 
-    def _to_wire(self, file, compress=None, origin=None, canonicalize=False):
+    def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
         relay_type = self.relay_type | (self.discovery_optional << 7)
         header = struct.pack("!BB", self.precedence, relay_type)
         file.write(header)
