@@ -61,7 +61,7 @@ class URI(dns.rdata.Rdata):
         file.write(self.target)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         priority, weight = parser.get_struct("!HH")
         target = parser.get_remaining()
         if len(target) == 0:

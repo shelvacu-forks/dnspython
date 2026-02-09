@@ -79,7 +79,7 @@ class AMTRELAY(dns.rdata.Rdata):
         Relay(self.relay_type, self.relay).to_wire(file, compress, origin, canonicalize)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         precedence, relay_type = parser.get_struct("!BB")
         discovery_optional = bool(relay_type >> 7)
         relay_type &= 0x7F

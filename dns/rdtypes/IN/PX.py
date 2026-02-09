@@ -59,7 +59,7 @@ class PX(dns.rdata.Rdata):
         self.mapx400.to_wire(file, None, origin, canonicalize)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         preference = parser.get_uint16()
         map822 = parser.get_name(origin)
         mapx400 = parser.get_name(origin)

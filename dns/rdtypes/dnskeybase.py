@@ -68,7 +68,7 @@ class DNSKEYBase(dns.rdata.Rdata):
         file.write(self.key)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         header = parser.get_struct("!HBB")
         key = parser.get_remaining()
         return cls(rdclass, rdtype, header[0], header[1], header[2], key)

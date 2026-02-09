@@ -52,7 +52,7 @@ class RP(dns.rdata.Rdata):
         self.txt.to_wire(file, None, origin, canonicalize)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         mbox = parser.get_name(origin)
         txt = parser.get_name(origin)
         return cls(rdclass, rdtype, mbox, txt)

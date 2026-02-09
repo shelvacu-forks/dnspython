@@ -36,7 +36,7 @@ class LP(dns.rdata.Rdata):
         self.fqdn.to_wire(file, compress, origin, canonicalize)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         preference = parser.get_uint16()
         fqdn = parser.get_name(origin)
         return cls(rdclass, rdtype, preference, fqdn)

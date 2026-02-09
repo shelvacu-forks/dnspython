@@ -52,6 +52,6 @@ class X25(dns.rdata.Rdata):
         file.write(self.address)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         address = parser.get_counted_bytes()
         return cls(rdclass, rdtype, address)

@@ -60,7 +60,7 @@ class CAA(dns.rdata.Rdata):
         file.write(self.value)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         flags = parser.get_uint8()
         tag = parser.get_counted_bytes()
         value = parser.get_remaining()

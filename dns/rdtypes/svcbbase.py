@@ -597,7 +597,7 @@ class SVCBBase(dns.rdata.Rdata):
                     value.to_wire(file, origin)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         priority = parser.get_uint16()
         target = parser.get_name(origin)
         if priority == 0 and parser.remaining() != 0:

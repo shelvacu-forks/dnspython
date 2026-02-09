@@ -49,6 +49,6 @@ class DHCID(dns.rdata.Rdata):
         file.write(self.data)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         data = parser.get_remaining()
         return cls(rdclass, rdtype, data)

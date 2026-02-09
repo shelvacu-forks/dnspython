@@ -68,6 +68,6 @@ class EUIBase(dns.rdata.Rdata):
         file.write(self.eui)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         eui = parser.get_bytes(cls.byte_len)
         return cls(rdclass, rdtype, eui)

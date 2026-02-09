@@ -42,7 +42,7 @@ class NID(dns.rdata.Rdata):
         file.write(dns.rdtypes.util.parse_formatted_hex(self.nodeid, 4, 4, ":"))
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         preference = parser.get_uint16()
         nodeid = parser.get_remaining()
         return cls(rdclass, rdtype, preference, nodeid)

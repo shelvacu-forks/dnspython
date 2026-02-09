@@ -55,7 +55,7 @@ class MXBase(dns.rdata.Rdata):
         self.exchange.to_wire(file, compress, origin, canonicalize)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         preference = parser.get_uint16()
         exchange = parser.get_name(origin)
         return cls(rdclass, rdtype, preference, exchange)

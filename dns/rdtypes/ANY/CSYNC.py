@@ -62,7 +62,7 @@ class CSYNC(dns.rdata.Rdata):
         Bitmap(self.windows).to_wire(file)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         serial, flags = parser.get_struct("!IH")
         bitmap = Bitmap.from_wire_parser(parser)
         return cls(rdclass, rdtype, serial, flags, bitmap)

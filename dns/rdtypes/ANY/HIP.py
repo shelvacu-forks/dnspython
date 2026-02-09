@@ -74,7 +74,7 @@ class HIP(dns.rdata.Rdata):
             server.to_wire(file, None, origin, False)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         lh, algorithm, lk = parser.get_struct("!BBH")
         hit = parser.get_bytes(lh)
         key = parser.get_bytes(lk)

@@ -93,7 +93,7 @@ class WKS(dns.rdata.Rdata):
         file.write(self.bitmap)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         address = parser.get_bytes(4)
         protocol = parser.get_uint8()
         bitmap = parser.get_remaining()

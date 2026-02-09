@@ -109,7 +109,7 @@ class NSEC3(dns.rdata.Rdata):
         Bitmap(self.windows).to_wire(file)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         algorithm, flags, iterations = parser.get_struct("!BBH")
         salt = parser.get_counted_bytes()
         next = parser.get_counted_bytes()

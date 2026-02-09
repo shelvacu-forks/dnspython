@@ -63,7 +63,7 @@ class NSEC3PARAM(dns.rdata.Rdata):
         file.write(self.salt)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         algorithm, flags, iterations = parser.get_struct("!BBH")
         salt = parser.get_counted_bytes()
         return cls(rdclass, rdtype, algorithm, flags, iterations, salt)

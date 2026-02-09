@@ -54,7 +54,7 @@ class A(dns.rdata.Rdata):
         file.write(pref)
 
     @classmethod
-    def from_wire_parser(cls, rdclass, rdtype, parser, origin=None):
+    def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         domain = parser.get_name(origin)
         address = parser.get_uint16()
         return cls(rdclass, rdtype, domain, address)
