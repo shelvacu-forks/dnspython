@@ -5,7 +5,7 @@ import enum
 import struct
 import ipaddress
 from collections.abc import Sequence, MutableMapping, Mapping
-from typing import Any, Self, IO, Literal, SupportsInt, Never
+from typing import Any, Self, IO, Literal, Never
 
 import dns.enum
 import dns.exception
@@ -13,7 +13,6 @@ import dns.immutable
 import dns.ipv4
 import dns.ipv6
 import dns.rdata
-import dns.rdtypes.util
 import dns.renderer
 import dns.tokenizer
 import dns.wire
@@ -172,6 +171,12 @@ class Param:
     def from_wire_parser(cls, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self | None:  # pylint: disable=W0613
         raise NotImplemented
 
+    def to_text(self) -> str:
+        raise NotImplemented
+
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
+        raise NotImplemented
+
 
 @dns.immutable.immutable
 class GenericParam(Param):
@@ -204,7 +209,7 @@ class GenericParam(Param):
         else:
             return cls(value)
 
-    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None):  # pylint: disable=W0613
+    def to_wire(self, file: IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         file.write(self.value)
 
 
@@ -231,7 +236,7 @@ class MandatoryParam(Param):
         keys = [k.encode() for k in value.split(",")]
         return cls(keys)
 
-    def to_text(self):
+    def to_text(self) -> str:
         return '"' + ",".join([key_to_text(key) for key in self.keys]) + '"'
 
     @classmethod
@@ -246,7 +251,7 @@ class MandatoryParam(Param):
             keys.append(key)
         return cls(keys)
 
-    def to_wire(self, file:IO[bytes], origin: dns.name.Name | None = None):  # pylint: disable=W0613
+    def to_wire(self, file:IO[bytes], origin: dns.name.Name | None = None) -> None:  # pylint: disable=W0613
         for key in self.keys:
             file.write(struct.pack("!H", key))
 
@@ -299,7 +304,7 @@ class NoDefaultALPNParam(Param):
         else:
             raise ValueError("no-default-alpn with non-empty value")
 
-    def to_text(self) -> Self:
+    def to_text(self) -> str:
         raise NotImplementedError  # pragma: no cover
 
     @classmethod
@@ -517,6 +522,7 @@ class SVCBBase(dns.rdata.Rdata):
         # record.
         mandatory = params.get(ParamKey.MANDATORY)
         if mandatory:
+            assert isinstance(mandatory, MandatoryParam)
             for key in mandatory.keys:
                 # Note we have to say "not in" as we have None as a value
                 # so a get() and a not None test would be wrong.
@@ -529,7 +535,7 @@ class SVCBBase(dns.rdata.Rdata):
 
     def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         target = self.target.choose_relativity(origin, relativize)
-        params = []
+        params:list[str] = []
         for key in sorted(self.params.keys()):
             value = self.params[key]
             if value is None:
@@ -546,7 +552,7 @@ class SVCBBase(dns.rdata.Rdata):
     @classmethod
     def from_text(
         cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
-    ):
+    ) -> Self:
         priority = tok.get_uint16()
         target = tok.get_name(origin, relativize, relativize_to)
         if priority == 0:
@@ -554,7 +560,7 @@ class SVCBBase(dns.rdata.Rdata):
             if not token.is_eol_or_eof():
                 raise SyntaxError("parameters in AliasMode")
             tok.unget(token)
-        params = {}
+        params:dict[ParamKey, Param | None] = {}
         while True:
             token = tok.get()
             if token.is_eol_or_eof():
@@ -602,7 +608,7 @@ class SVCBBase(dns.rdata.Rdata):
         target = parser.get_name(origin)
         if priority == 0 and parser.remaining() != 0:
             raise dns.exception.FormError("parameters in AliasMode")
-        params = {}
+        params:dict[ParamKey, Param | None] = {}
         prior_key = -1
         while parser.remaining() > 0:
             key = parser.get_uint16()
@@ -619,7 +625,3 @@ class SVCBBase(dns.rdata.Rdata):
 
     def _processing_priority(self):
         return self.priority
-
-    @classmethod
-    def _processing_order(cls, iterable):
-        return dns.rdtypes.util.priority_processing_order(iterable)

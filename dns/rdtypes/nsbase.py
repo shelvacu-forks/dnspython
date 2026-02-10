@@ -17,7 +17,8 @@
 
 """NS-like base classes."""
 
-import dns.exception
+from typing import Any, IO, Self
+
 import dns.immutable
 import dns.name
 import dns.rdata
@@ -29,7 +30,12 @@ class NSBase(dns.rdata.Rdata):
 
     __slots__ = ["target"]
 
-    def __init__(self, rdclass, rdtype, target):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        target: str | dns.name.Name,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.target = self._as_name(target)
 

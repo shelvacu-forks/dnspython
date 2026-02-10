@@ -19,6 +19,7 @@ import base64
 import calendar
 import struct
 import time
+from typing import Any, IO, Self
 
 import dns.dnssectypes
 import dns.exception
@@ -31,7 +32,7 @@ class BadSigTime(dns.exception.DNSException):
     """Time in DNS SIG or RRSIG resource record cannot be parsed."""
 
 
-def sigtime_to_posixtime(what):
+def sigtime_to_posixtime(what: str) -> int:
     if len(what) <= 10 and what.isdigit():
         return int(what)
     if len(what) != 14:
@@ -45,7 +46,7 @@ def sigtime_to_posixtime(what):
     return calendar.timegm((year, month, day, hour, minute, second, 0, 0, 0))
 
 
-def posixtime_to_sigtime(what):
+def posixtime_to_sigtime(what: int) -> str:
     return time.strftime("%Y%m%d%H%M%S", time.gmtime(what))
 
 
@@ -64,20 +65,29 @@ class RRSIGBase(dns.rdata.Rdata):
         "signer",
         "signature",
     ]
+    type_covered: dns.rdatatype.RdataType
+    algorithm: dns.dnssectypes.Algorithm
+    labels: int
+    original_ttl: int
+    expiration: int
+    inception: int
+    key_tag: int
+    signer: dns.name.Name
+    signature: bytes
 
     def __init__(
         self,
-        rdclass,
-        rdtype,
-        type_covered,
-        algorithm,
-        labels,
-        original_ttl,
-        expiration,
-        inception,
-        key_tag,
-        signer,
-        signature,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        type_covered: int | dns.rdatatype.RdataType,
+        algorithm: int | str,
+        labels: int,
+        original_ttl: int | str,
+        expiration: int,
+        inception: int,
+        key_tag: int,
+        signer: str | dns.name.Name,
+        signature: bytes | bytearray | str,
     ):
         super().__init__(rdclass, rdtype)
         self.type_covered = self._as_rdatatype(type_covered)

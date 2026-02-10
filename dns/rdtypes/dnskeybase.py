@@ -20,7 +20,6 @@ import enum
 import struct
 
 import dns.dnssectypes
-import dns.exception
 import dns.immutable
 import dns.rdata
 

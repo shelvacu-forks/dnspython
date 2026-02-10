@@ -17,6 +17,7 @@
 
 import binascii
 import struct
+from typing import Any, IO, Self
 
 import dns.dnssectypes
 import dns.immutable
@@ -39,7 +40,20 @@ class DSBase(dns.rdata.Rdata):
         4: 48,  # SHA-384, RFC 6605 Sec. 2
     }
 
-    def __init__(self, rdclass, rdtype, key_tag, algorithm, digest_type, digest):
+    key_tag: int
+    algorithm: dns.dnssectypes.Algorithm
+    digest_type: dns.dnssectypes.DSDigest
+    digest: bytes
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        key_tag: int,
+        algorithm: str | int,
+        digest_type: int,
+        digest: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.key_tag = self._as_uint16(key_tag)
         self.algorithm = dns.dnssectypes.Algorithm.make(algorithm)

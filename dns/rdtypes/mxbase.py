@@ -18,12 +18,11 @@
 """MX-like base classes."""
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
-import dns.rdtypes.util
 
 
 @dns.immutable.immutable
@@ -32,7 +31,13 @@ class MXBase(dns.rdata.Rdata):
 
     __slots__ = ["preference", "exchange"]
 
-    def __init__(self, rdclass, rdtype, preference, exchange):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        preference: int,
+        exchange: str | dns.name.Name,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         self.exchange = self._as_name(exchange)
@@ -62,10 +67,6 @@ class MXBase(dns.rdata.Rdata):
 
     def _processing_priority(self):
         return self.preference
-
-    @classmethod
-    def _processing_order(cls, iterable):
-        return dns.rdtypes.util.priority_processing_order(iterable)
 
 
 @dns.immutable.immutable

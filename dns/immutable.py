@@ -15,7 +15,7 @@ class Dict[K, V](Mapping[K, V]):  # lgtm[py/missing-equals]
     @overload
     def __init__(
         self,
-        dictionary: Iterable[tuple[K, V]],
+        dictionary: Iterable[tuple[K, V]] | Mapping[K, V],
         no_copy: Literal[False] = False,
         map_factory: Callable[[], MutableMapping[K, V]] = dict,
     ) -> None: ...

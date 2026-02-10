@@ -26,7 +26,7 @@ import itertools
 import random
 from collections.abc import Iterable, Callable
 from importlib import import_module
-from typing import Any, Literal, cast, IO, Self, overload
+from typing import Any, Literal, cast, IO, Self, overload, cast
 from typing_extensions import Buffer
 
 import dns.exception
@@ -614,10 +614,28 @@ class Rdata:
     # Processing order
 
     @classmethod
-    def _processing_order[T](cls, iterable: Iterable[T]) -> list[T]:
+    def _processing_order(cls, iterable: Iterable[Self]) -> list[Self]:
         items = list(iterable)
-        random.shuffle(items)
-        return items
+        if len(items) == 0:
+            return items
+        all_have_weighted = True
+        all_have_priority = True
+        for i in items:
+            have_weighted = isinstance(i, (dns.rdtypes.IN.SRV.SRV, dns.rdtypes.ANY.URI.URI))
+            have_priority = have_weighted or isinstance(i, (dns.rdtypes.svcbbase.SVCBBase, dns.rdtypes.mxbase.MXBase, dns.rdtypes.IN.PX.PX, dns.rdtypes.IN.NAPTR.NAPTR))
+            all_have_weighted = all_have_weighted and have_weighted
+            all_have_priority = all_have_priority and have_priority
+        if all_have_weighted:
+            items_weighted = cast(list[dns.rdtypes.util._HasWeight[Any, Any]], items)
+            res = dns.rdtypes.util.weighted_processing_order(items_weighted)
+            return cast(list[Self], res)
+        elif all_have_priority:
+            items_priority = cast(list[dns.rdtypes.util._HasPriority[Any]], items)
+            res = dns.rdtypes.util.priority_processing_order(items_priority)
+            return cast(list[Self], res)
+        else:
+            random.shuffle(items)
+            return items
 
 
 @dns.immutable.immutable

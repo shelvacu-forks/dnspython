@@ -15,6 +15,7 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import binascii
+from typing import Any, IO, Self
 
 import dns.exception
 import dns.immutable
@@ -34,7 +35,12 @@ class EUIBase(dns.rdata.Rdata):
     # byte_len = 6  # 0123456789ab (in hex)
     # text_len = byte_len * 3 - 1  # 01-23-45-67-89-ab
 
-    def __init__(self, rdclass, rdtype, eui):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        eui: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.eui = self._as_bytes(eui)
         if len(self.eui) != self.byte_len:
