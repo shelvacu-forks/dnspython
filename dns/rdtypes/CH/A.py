@@ -31,7 +31,7 @@ class A(dns.rdata.Rdata):
 
     __slots__ = ["domain", "address"]
 
-    def __init__(self, rdclass, rdtype, domain, address):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, domain, address):
         super().__init__(rdclass, rdtype)
         self.domain = self._as_name(domain)
         self.address = self._as_uint16(address)

@@ -39,7 +39,7 @@ class DNSKEYBase(dns.rdata.Rdata):
 
     __slots__ = ["flags", "protocol", "algorithm", "key"]
 
-    def __init__(self, rdclass, rdtype, flags, protocol, algorithm, key):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, flags, protocol, algorithm, key):
         super().__init__(rdclass, rdtype)
         self.flags = Flag(self._as_uint16(flags))
         self.protocol = self._as_uint8(protocol)

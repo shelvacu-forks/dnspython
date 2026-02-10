@@ -85,7 +85,7 @@ class APL(dns.rdata.Rdata):
 
     __slots__ = ["items"]
 
-    def __init__(self, rdclass, rdtype, items):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, items):
         super().__init__(rdclass, rdtype)
         for item in items:
             if not isinstance(item, APLItem):

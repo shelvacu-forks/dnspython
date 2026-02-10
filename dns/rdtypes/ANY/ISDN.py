@@ -31,7 +31,7 @@ class ISDN(dns.rdata.Rdata):
 
     __slots__ = ["address", "subaddress"]
 
-    def __init__(self, rdclass, rdtype, address, subaddress):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address, subaddress):
         super().__init__(rdclass, rdtype)
         self.address = self._as_bytes(address, True, 255)
         self.subaddress = self._as_bytes(subaddress, True, 255)

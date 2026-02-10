@@ -29,7 +29,7 @@ class OPENPGPKEY(dns.rdata.Rdata):
 
     # see: RFC 7929
 
-    def __init__(self, rdclass, rdtype, key):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, key):
         super().__init__(rdclass, rdtype)
         self.key = self._as_bytes(key)
 

@@ -33,7 +33,7 @@ class HIP(dns.rdata.Rdata):
 
     __slots__ = ["hit", "algorithm", "key", "servers"]
 
-    def __init__(self, rdclass, rdtype, hit, algorithm, key, servers):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, hit, algorithm, key, servers):
         super().__init__(rdclass, rdtype)
         self.hit = self._as_bytes(hit, True, 255)
         self.algorithm = self._as_uint8(algorithm)

@@ -31,7 +31,7 @@ class HINFO(dns.rdata.Rdata):
 
     __slots__ = ["cpu", "os"]
 
-    def __init__(self, rdclass, rdtype, cpu, os):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, cpu, os):
         super().__init__(rdclass, rdtype)
         self.cpu = self._as_bytes(cpu, True, 255)
         self.os = self._as_bytes(os, True, 255)

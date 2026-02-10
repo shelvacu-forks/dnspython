@@ -33,7 +33,7 @@ class URI(dns.rdata.Rdata):
 
     __slots__ = ["priority", "weight", "target"]
 
-    def __init__(self, rdclass, rdtype, priority, weight, target):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, priority, weight, target):
         super().__init__(rdclass, rdtype)
         self.priority = self._as_uint16(priority)
         self.weight = self._as_uint16(weight)

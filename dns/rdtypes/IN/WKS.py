@@ -39,7 +39,7 @@ class WKS(dns.rdata.Rdata):
 
     __slots__ = ["address", "protocol", "bitmap"]
 
-    def __init__(self, rdclass, rdtype, address, protocol, bitmap):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address, protocol, bitmap):
         super().__init__(rdclass, rdtype)
         self.address = self._as_ipv4_address(address)
         self.protocol = self._as_uint8(protocol)

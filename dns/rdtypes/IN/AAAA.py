@@ -28,7 +28,7 @@ class AAAA(dns.rdata.Rdata):
 
     __slots__ = ["address"]
 
-    def __init__(self, rdclass, rdtype, address):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address):
         super().__init__(rdclass, rdtype)
         self.address = self._as_ipv6_address(address)
 

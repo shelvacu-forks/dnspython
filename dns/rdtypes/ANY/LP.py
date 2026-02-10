@@ -14,7 +14,7 @@ class LP(dns.rdata.Rdata):
 
     __slots__ = ["preference", "fqdn"]
 
-    def __init__(self, rdclass, rdtype, preference, fqdn):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, fqdn):
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         self.fqdn = self._as_name(fqdn)

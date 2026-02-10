@@ -29,7 +29,7 @@ class RP(dns.rdata.Rdata):
 
     __slots__ = ["mbox", "txt"]
 
-    def __init__(self, rdclass, rdtype, mbox, txt):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, mbox, txt):
         super().__init__(rdclass, rdtype)
         self.mbox = self._as_name(mbox)
         self.txt = self._as_name(txt)

@@ -15,7 +15,7 @@ class NID(dns.rdata.Rdata):
 
     __slots__ = ["preference", "nodeid"]
 
-    def __init__(self, rdclass, rdtype, preference, nodeid):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, nodeid):
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         if isinstance(nodeid, bytes):

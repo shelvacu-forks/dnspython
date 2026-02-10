@@ -17,7 +17,7 @@ class ZONEMD(dns.rdata.Rdata):
 
     __slots__ = ["serial", "scheme", "hash_algorithm", "digest"]
 
-    def __init__(self, rdclass, rdtype, serial, scheme, hash_algorithm, digest):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, serial, scheme, hash_algorithm, digest):
         super().__init__(rdclass, rdtype)
         self.serial = self._as_uint32(serial)
         self.scheme = dns.zonetypes.DigestScheme.make(scheme)

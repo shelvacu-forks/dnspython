@@ -30,7 +30,7 @@ class DHCID(dns.rdata.Rdata):
 
     __slots__ = ["data"]
 
-    def __init__(self, rdclass, rdtype, data):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, data):
         super().__init__(rdclass, rdtype)
         self.data = self._as_bytes(data)
 

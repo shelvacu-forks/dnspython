@@ -34,7 +34,7 @@ class NSEC(dns.rdata.Rdata):
 
     __slots__ = ["next", "windows"]
 
-    def __init__(self, rdclass, rdtype, next, windows):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, next, windows):
         super().__init__(rdclass, rdtype)
         self.next = self._as_name(next)
         if not isinstance(windows, Bitmap):
