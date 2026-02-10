@@ -16,6 +16,7 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self, NamedTuple
 
 import dns.exception
 import dns.immutable
@@ -35,7 +36,7 @@ _MAX_LONGITUDE = 0x80000000 + 180 * 3600000
 _MIN_LONGITUDE = 0x80000000 - 180 * 3600000
 
 
-def _exponent_of(what, desc):
+def _exponent_of(what: int, desc: str) -> int:
     if what == 0:
         return 0
     exp = None
@@ -47,8 +48,16 @@ def _exponent_of(what, desc):
         raise dns.exception.SyntaxError(f"{desc} value out of bounds")
     return exp
 
+_DMS_generic = tuple[int, int, int, int, int]
 
-def _float_to_tuple(what):
+class DMS(NamedTuple):
+    degrees: int
+    minutes: int
+    seconds: int
+    what: int
+    sign: int
+
+def _float_to_tuple(what: float) -> DMS:
     if what < 0:
         sign = -1
         what *= -1
@@ -62,10 +71,10 @@ def _float_to_tuple(what):
     seconds = int(what // 1000)
     what -= int(seconds * 1000)
     what = int(what)
-    return (degrees, minutes, seconds, what, sign)
+    return DMS(degrees, minutes, seconds, what, sign)
 
 
-def _tuple_to_float(what):
+def _tuple_to_float(what: _DMS_generic) -> float:
     value = float(what[0])
     value += float(what[1]) / 60.0
     value += float(what[2]) / 3600.0
@@ -73,14 +82,14 @@ def _tuple_to_float(what):
     return float(what[4]) * value
 
 
-def _encode_size(what, desc):
+def _encode_size(what: float | str, desc: str) -> int:
     what = int(what)
     exponent = _exponent_of(what, desc) & 0xF
     base = what // pow(10, exponent) & 0xF
     return base * 16 + exponent
 
 
-def _decode_size(what, desc):
+def _decode_size(what: int, desc: str) -> int:
     exponent = what & 0x0F
     if exponent > 9:
         raise dns.exception.FormError(f"bad {desc} exponent")
@@ -90,7 +99,7 @@ def _decode_size(what, desc):
     return base * pow(10, exponent)
 
 
-def _check_coordinate_list(value, low, high):
+def _check_coordinate_list(value: _DMS_generic, low: int, high: int) -> None:
     if value[0] < low or value[0] > high:
         raise ValueError(f"not in range [{low}, {high}]")
     if value[1] < 0 or value[1] > 59:
@@ -101,6 +110,17 @@ def _check_coordinate_list(value, low, high):
         raise ValueError("bad milliseconds value")
     if value[4] != 1 and value[4] != -1:
         raise ValueError("bad hemisphere value")
+
+def _to_dms(
+    value: float | list[int] | _DMS_generic
+) -> DMS:
+    if isinstance(value, int):
+        value = float(value)
+    if isinstance(value, (int, float)):
+        value = _float_to_tuple(value)
+    if isinstance(value, (tuple, list)):
+        value = DMS(*value)
+    return value
 
 
 @dns.immutable.immutable
@@ -120,14 +140,14 @@ class LOC(dns.rdata.Rdata):
 
     def __init__(
         self,
-        rdclass,
-        rdtype,
-        latitude,
-        longitude,
-        altitude,
-        size=_default_size,
-        hprec=_default_hprec,
-        vprec=_default_vprec,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        latitude: float | list[int] | _DMS_generic,
+        longitude: float | list[int] | _DMS_generic,
+        altitude: float,
+        size: float = _default_size,
+        hprec: float = _default_hprec,
+        vprec: float = _default_vprec,
     ):
         """Initialize a LOC record instance.
 
@@ -138,18 +158,12 @@ class LOC(dns.rdata.Rdata):
         and vertical precision are specified in centimeters."""
 
         super().__init__(rdclass, rdtype)
-        if isinstance(latitude, int):
-            latitude = float(latitude)
-        if isinstance(latitude, float):
-            latitude = _float_to_tuple(latitude)
-        _check_coordinate_list(latitude, -90, 90)
-        self.latitude = tuple(latitude)  # pyright: ignore
-        if isinstance(longitude, int):
-            longitude = float(longitude)
-        if isinstance(longitude, float):
-            longitude = _float_to_tuple(longitude)
-        _check_coordinate_list(longitude, -180, 180)
-        self.longitude = tuple(longitude)  # pyright: ignore
+        lat = _to_dms(latitude)
+        _check_coordinate_list(lat, -90, 90)
+        self.latitude = lat
+        long = _to_dms(longitude)
+        _check_coordinate_list(long, -180, 180)
+        self.longitude = long
         self.altitude = float(altitude)
         self.size = float(size)
         self.horizontal_precision = float(hprec)
@@ -186,10 +200,16 @@ class LOC(dns.rdata.Rdata):
 
     @classmethod
     def from_text(
-        cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
+        cls,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        tok: dns.tokenizer.Tokenizer,
+        origin: dns.name.Name | None = None,
+        relativize: bool = True,
+        relativize_to: dns.name.Name | None = None,
     ):
-        latitude = [0, 0, 0, 0, 1]
-        longitude = [0, 0, 0, 0, 1]
+        latitude:list[int] = [0, 0, 0, 0, 1]
+        longitude:list[int] = [0, 0, 0, 0, 1]
         size = _default_size
         hprec = _default_hprec
         vprec = _default_vprec

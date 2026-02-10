@@ -23,7 +23,7 @@ TIntEnum = TypeVar("TIntEnum", bound="IntEnum")
 
 class IntEnum(enum.IntEnum):
     @classmethod
-    def _missing_(cls, value):
+    def _missing_(cls, value: Any):
         cls._check_value(value)
         val = int.__new__(cls, value)  # pyright: ignore
         val._name_ = cls._extra_to_text(value, None) or f"{cls._prefix()}{value}"
@@ -31,13 +31,13 @@ class IntEnum(enum.IntEnum):
         return val
 
     @classmethod
-    def _check_value(cls, value):
-        max = cls._maximum()
+    def _check_value(cls, value: Any | int):
+        max_ = cls._maximum()
         if not isinstance(value, int):
             raise TypeError
-        if value < 0 or value > max:
+        if value < 0 or value > max_:
             name = cls._short_name()
-            raise ValueError(f"{name} must be an int between >= 0 and <= {max}")
+            raise ValueError(f"{name} must be an int between >= 0 and <= {max_}")
 
     @classmethod
     def from_text(cls: type[TIntEnum], text: str) -> TIntEnum:
@@ -89,11 +89,11 @@ class IntEnum(enum.IntEnum):
         return cls(value)
 
     @classmethod
-    def _maximum(cls):
+    def _maximum(cls) -> int:
         raise NotImplementedError  # pragma: no cover
 
     @classmethod
-    def _short_name(cls):
+    def _short_name(cls) -> str:
         return cls.__name__.lower()
 
     @classmethod
@@ -105,7 +105,7 @@ class IntEnum(enum.IntEnum):
         return None
 
     @classmethod
-    def _extra_to_text(cls, value, current_text):  # pylint: disable=W0613
+    def _extra_to_text(cls, value: int, current_text: str | None) -> str | None:  # pylint: disable=W0613
         return current_text
 
     @classmethod

@@ -1,6 +1,8 @@
 # Copyright (C) Dnspython Contributors, see LICENSE for text of ISC license
 
 import struct
+import ipaddress
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.ipv4
@@ -15,7 +17,16 @@ class L32(dns.rdata.Rdata):
 
     __slots__ = ["preference", "locator32"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, locator32):
+    preference: int
+    locator32: str
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        preference: int,
+        locator32: str | bytes | ipaddress.IPv4Address,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         self.locator32 = self._as_ipv4_address(locator32)

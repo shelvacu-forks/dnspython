@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import base64
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
@@ -28,8 +28,11 @@ class OPENPGPKEY(dns.rdata.Rdata):
     """OPENPGPKEY record"""
 
     # see: RFC 7929
+    __slots__ = ("key",)
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, key):
+    key: bytes
+
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, key: bytes | bytearray | str):
         super().__init__(rdclass, rdtype)
         self.key = self._as_bytes(key)
 

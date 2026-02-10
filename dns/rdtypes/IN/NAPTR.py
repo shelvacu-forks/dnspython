@@ -16,15 +16,14 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
-import dns.rdtypes.util
 
 
-def _write_string(file, s):
+def _write_string(file: IO[bytes], s: bytes) -> None:
     l = len(s)
     assert l < 256
     file.write(struct.pack("!B", l))
@@ -38,9 +37,23 @@ class NAPTR(dns.rdata.Rdata):
     # see: RFC 3403
 
     __slots__ = ["order", "preference", "flags", "service", "regexp", "replacement"]
+    order: int
+    preference: int
+    flags: bytes
+    service: bytes
+    regexp: bytes
+    replacement: dns.name.Name
 
     def __init__(
-        self, rdclass, rdtype, order, preference, flags, service, regexp, replacement
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        order: int,
+        preference: int,
+        flags: bytes | bytearray | str,
+        service: bytes | bytearray | str,
+        regexp: bytes | bytearray | str,
+        replacement: str | dns.name.Name,
     ):
         super().__init__(rdclass, rdtype)
         self.flags = self._as_bytes(flags, True, 255)
@@ -85,10 +98,11 @@ class NAPTR(dns.rdata.Rdata):
     @classmethod
     def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
         order, preference = parser.get_struct("!HH")
-        strings = []
-        for _ in range(3):
-            s = parser.get_counted_bytes()
-            strings.append(s)
+        strings = (
+            parser.get_counted_bytes(),
+            parser.get_counted_bytes(),
+            parser.get_counted_bytes(),
+        )
         replacement = parser.get_name(origin)
         return cls(
             rdclass,
@@ -103,7 +117,3 @@ class NAPTR(dns.rdata.Rdata):
 
     def _processing_priority(self):
         return (self.order, self.preference)
-
-    @classmethod
-    def _processing_order(cls, iterable):
-        return dns.rdtypes.util.priority_processing_order(iterable)

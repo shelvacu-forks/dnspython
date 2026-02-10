@@ -27,6 +27,12 @@ from dns.rdtypes.dnskeybase import (  # noqa: F401  lgtm[py/unused-import]
 
 # pylint: enable=unused-import
 
+__all__ = (
+    "REVOKE",
+    "SEP",
+    "ZONE",
+    "CDNSKEY",
+)
 
 @dns.immutable.immutable
 class CDNSKEY(dns.rdtypes.dnskeybase.DNSKEYBase):

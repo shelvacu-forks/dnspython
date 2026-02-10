@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
@@ -31,7 +31,18 @@ class CAA(dns.rdata.Rdata):
 
     __slots__ = ["flags", "tag", "value"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, flags, tag, value):
+    flags: int
+    tag: bytes
+    value: bytes
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        flags: int,
+        tag: bytes | bytearray | str,
+        value: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.flags = self._as_uint8(flags)
         self.tag = self._as_bytes(tag, True, 255)

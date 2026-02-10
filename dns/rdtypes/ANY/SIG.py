@@ -27,6 +27,12 @@ from dns.rdtypes.rrsigbase import (  # noqa: F401  lgtm[py/unused-import]
 
 # pylint: enable=unused-import
 
+__all__ = (
+    "BadSigTime",
+    "posixtime_to_sigtime",
+    "sigtime_to_posixtime",
+    "SIG",
+)
 
 @dns.immutable.immutable
 class SIG(dns.rdtypes.rrsigbase.RRSIGBase):

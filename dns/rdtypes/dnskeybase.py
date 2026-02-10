@@ -18,6 +18,7 @@
 import base64
 import enum
 import struct
+from typing import Any, IO, Self
 
 import dns.dnssectypes
 import dns.immutable
@@ -39,7 +40,15 @@ class DNSKEYBase(dns.rdata.Rdata):
 
     __slots__ = ["flags", "protocol", "algorithm", "key"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, flags, protocol, algorithm, key):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        flags: int | Flag,
+        protocol: int,
+        algorithm: str | int,
+        key: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.flags = Flag(self._as_uint16(flags))
         self.protocol = self._as_uint8(protocol)

@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
@@ -31,7 +31,16 @@ class ISDN(dns.rdata.Rdata):
 
     __slots__ = ["address", "subaddress"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address, subaddress):
+    address: bytes
+    subaddress: bytes
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        address: bytes | bytearray | str,
+        subaddress: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.address = self._as_bytes(address, True, 255)
         self.subaddress = self._as_bytes(subaddress, True, 255)

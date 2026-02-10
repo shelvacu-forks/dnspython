@@ -16,8 +16,9 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from collections.abc import Iterable
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
@@ -35,8 +36,19 @@ class CSYNC(dns.rdata.Rdata):
     """CSYNC record"""
 
     __slots__ = ["serial", "flags", "windows"]
+    
+    serial: int
+    flags: int
+    windows: tuple[tuple[int, bytes], ...]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, serial, flags, windows):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        serial: int,
+        flags: int,
+        windows: Bitmap | Iterable[tuple[int, bytes]],
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.serial = self._as_uint32(serial)
         self.flags = self._as_uint16(flags)

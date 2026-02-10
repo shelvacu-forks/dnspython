@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import base64
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 
@@ -29,8 +29,9 @@ class DHCID(dns.rdata.Rdata):
     # see: RFC 4701
 
     __slots__ = ["data"]
+    data: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, data):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, data: bytes | bytearray | str):
         super().__init__(rdclass, rdtype)
         self.data = self._as_bytes(data)
 

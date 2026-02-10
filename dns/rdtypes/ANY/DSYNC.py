@@ -1,13 +1,13 @@
 # Copyright (C) Dnspython Contributors, see LICENSE for text of ISC license
 
 import struct
+from typing import Any, IO, Self
 
 import dns.enum
 import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.rdatatype
-import dns.rdtypes.util
 
 
 class UnknownScheme(dns.exception.DNSException):
@@ -36,7 +36,15 @@ class DSYNC(dns.rdata.Rdata):
 
     __slots__ = ["rrtype", "scheme", "port", "target"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, rrtype, scheme, port, target):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        rrtype: dns.rdatatype.RdataType,
+        scheme: int | str | Scheme,
+        port: int,
+        target: dns.name.Name | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.rrtype = self._as_rdatatype(rrtype)
         self.scheme = Scheme.make(scheme)

@@ -17,12 +17,12 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
 import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
-import dns.rdtypes.util
 
 
 @dns.immutable.immutable
@@ -32,8 +32,18 @@ class URI(dns.rdata.Rdata):
     # see RFC 7553
 
     __slots__ = ["priority", "weight", "target"]
+    priority: int
+    weight: int
+    target: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, priority, weight, target):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        priority: int,
+        weight: int,
+        target: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.priority = self._as_uint16(priority)
         self.weight = self._as_uint16(weight)
@@ -73,7 +83,3 @@ class URI(dns.rdata.Rdata):
 
     def _processing_weight(self):
         return self.weight
-
-    @classmethod
-    def _processing_order(cls, iterable):
-        return dns.rdtypes.util.weighted_processing_order(iterable)

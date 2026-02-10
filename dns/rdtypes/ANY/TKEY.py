@@ -17,8 +17,8 @@
 
 import base64
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 
@@ -36,21 +36,28 @@ class TKEY(dns.rdata.Rdata):
         "key",
         "other",
     ]
+    algorithm: dns.tsig.Algorithm
+    inception: int
+    expiration: int
+    mode: int
+    error: int
+    key: bytes
+    other: bytes
 
     def __init__(
         self,
-        rdclass,
-        rdtype,
-        algorithm,
-        inception,
-        expiration,
-        mode,
-        error,
-        key,
-        other=b"",
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        algorithm: dns.tsig.ToAlgorithm,
+        inception: int,
+        expiration: int,
+        mode: int,
+        error: int,
+        key: bytes | bytearray | str,
+        other: bytes | bytearray | str = b"",
     ):
         super().__init__(rdclass, rdtype)
-        self.algorithm = self._as_name(algorithm)
+        self.algorithm = dns.tsig.to_algorithm(algorithm)
         self.inception = self._as_uint32(inception)
         self.expiration = self._as_uint32(expiration)
         self.mode = self._as_uint16(mode)
@@ -59,7 +66,7 @@ class TKEY(dns.rdata.Rdata):
         self.other = self._as_bytes(other)
 
     def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
-        _algorithm = self.algorithm.choose_relativity(origin, relativize)
+        _algorithm = self.algorithm.value.choose_relativity(origin, relativize)
         key = dns.rdata._base64ify(self.key, 0)
         other = ""
         if len(self.other) > 0:
@@ -85,7 +92,7 @@ class TKEY(dns.rdata.Rdata):
         )
 
     def _to_wire(self, file: IO[bytes], compress: dns.name.CompressType | None = None, origin: dns.name.Name | None = None, canonicalize: bool = False) -> None:
-        self.algorithm.to_wire(file, compress, origin)
+        self.algorithm.value.to_wire(file, compress, origin)
         file.write(
             struct.pack("!IIHH", self.inception, self.expiration, self.mode, self.error)
         )

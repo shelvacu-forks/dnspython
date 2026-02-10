@@ -150,13 +150,14 @@ class Bitmap:
     """A helper class for the NSEC/NSEC3/CSYNC type bitmaps"""
 
     type_name = ""
+    windows: list[tuple[int, bytes]]
 
     def __init__(self, windows: Iterable[tuple[int, bytes]] | None = None) -> None:
         last_window = -1
+        self.windows = []
         if windows is None:
-            windows = []
-        self.windows = windows
-        for window, bitmap in self.windows:
+            return
+        for window, bitmap in windows:
             if not isinstance(window, int):
                 raise ValueError(f"bad {self.type_name} window type")
             if window <= last_window:
@@ -168,6 +169,7 @@ class Bitmap:
                 raise ValueError(f"bad {self.type_name} octets type")
             if len(bitmap) == 0 or len(bitmap) > 32:
                 raise ValueError(f"bad {self.type_name} octets")
+            self.windows.append((window, bitmap))
 
     def to_text(self) -> str:
         text = ""
@@ -182,7 +184,7 @@ class Bitmap:
         return text
 
     @classmethod
-    def from_text(cls, tok: "dns.tokenizer.Tokenizer") -> "Bitmap":
+    def from_text(cls, tok: "dns.tokenizer.Tokenizer") -> Self:
         rdtypes:list[dns.rdatatype.RdataType] = []
         for token in tok.get_remaining():
             rdtype = dns.rdatatype.from_text(token.unescape().value)
@@ -192,7 +194,7 @@ class Bitmap:
         return cls.from_rdtypes(rdtypes)
 
     @classmethod
-    def from_rdtypes(cls, rdtypes: list[dns.rdatatype.RdataType]) -> "Bitmap":
+    def from_rdtypes(cls, rdtypes: list[dns.rdatatype.RdataType]) -> Self:
         rdtypes = sorted(rdtypes)
         window = 0
         octets = 0
@@ -224,7 +226,7 @@ class Bitmap:
             file.write(bitmap)
 
     @classmethod
-    def from_wire_parser(cls, parser: "dns.wire.Parser") -> "Bitmap":
+    def from_wire_parser(cls, parser: dns.wire.Parser) -> Self:
         windows:list[tuple[int, bytes]] = []
         while parser.remaining() > 0:
             window = parser.get_uint8()

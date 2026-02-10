@@ -17,8 +17,8 @@
 
 import base64
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.rdtypes.util
@@ -35,16 +35,28 @@ class IPSECKEY(dns.rdata.Rdata):
     # see: RFC 4025
 
     __slots__ = ["precedence", "gateway_type", "algorithm", "gateway", "key"]
+    precedence: int
+    gateway_type: int
+    algorithm: int
+    gateway: str | dns.name.Name | None
+    key: bytes
 
     def __init__(
-        self, rdclass, rdtype, precedence, gateway_type, algorithm, gateway, key
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        precedence: int,
+        gateway_type: int,
+        algorithm: int,
+        gateway: str | dns.name.Name | None,
+        key: bytes | bytearray | str,
     ):
         super().__init__(rdclass, rdtype)
-        gateway = Gateway(gateway_type, gateway)
+        gateway_obj = Gateway(gateway_type, gateway)
         self.precedence = self._as_uint8(precedence)
-        self.gateway_type = gateway.type
+        self.gateway_type = gateway_obj.type
         self.algorithm = self._as_uint8(algorithm)
-        self.gateway = gateway.gateway
+        self.gateway = gateway_obj.gateway
         self.key = self._as_bytes(key)
 
     def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:

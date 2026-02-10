@@ -123,18 +123,17 @@ class RdataType(dns.enum.IntEnum):
         return "TYPE"
 
     @classmethod
-    def _extra_from_text(cls, text):
+    def _extra_from_text(cls, text: str) -> "RdataType | None":
         if text.find("-") >= 0:
-            try:
-                return cls[text.replace("-", "_")]
-            except KeyError:  # pragma: no cover
-                pass
+            key = text.replace("-", "_")
+            if key in cls:
+                return cls[key]
         return _registered_by_text.get(text)
 
     @classmethod
-    def _extra_to_text(cls, value, current_text):
+    def _extra_to_text(cls, value: int, current_text: str | None) -> str | None:
         if current_text is None:
-            return _registered_by_value.get(value)
+            return _registered_by_value.get(RdataType(value))
         if current_text.find("_") >= 0:
             return current_text.replace("_", "-")
         return current_text

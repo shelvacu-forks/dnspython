@@ -15,7 +15,9 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import dns.exception
+import ipaddress
+from typing import Any, IO, Self
+
 import dns.immutable
 import dns.ipv6
 import dns.rdata
@@ -27,8 +29,14 @@ class AAAA(dns.rdata.Rdata):
     """AAAA record."""
 
     __slots__ = ["address"]
+    address: str
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        address: str | bytes | ipaddress.IPv6Address,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.address = self._as_ipv6_address(address)
 

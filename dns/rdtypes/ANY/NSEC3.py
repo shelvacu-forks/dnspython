@@ -18,8 +18,9 @@
 import base64
 import binascii
 import struct
+from collections.abc import Iterable
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
@@ -50,9 +51,23 @@ class NSEC3(dns.rdata.Rdata):
     """NSEC3 record"""
 
     __slots__ = ["algorithm", "flags", "iterations", "salt", "next", "windows"]
+    algorithm: int
+    flags: int
+    iterations: int
+    salt: bytes
+    next: bytes
+    windows: tuple[tuple[int, bytes], ...]
 
     def __init__(
-        self, rdclass, rdtype, algorithm, flags, iterations, salt, next, windows
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        algorithm: int,
+        flags: int,
+        iterations: int,
+        salt: bytes | bytearray | str,
+        next: bytes | bytearray | str,
+        windows: Bitmap | Iterable[tuple[int, bytes]] | None,
     ):
         super().__init__(rdclass, rdtype)
         self.algorithm = self._as_uint8(algorithm)
@@ -116,5 +131,5 @@ class NSEC3(dns.rdata.Rdata):
         bitmap = Bitmap.from_wire_parser(parser)
         return cls(rdclass, rdtype, algorithm, flags, iterations, salt, next, bitmap)
 
-    def next_name(self, origin=None):
+    def next_name(self, origin: dns.name.Name | None = None) -> dns.name.Name:
         return dns.name.from_text(self._next_text(), origin)

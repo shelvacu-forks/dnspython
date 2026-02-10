@@ -1,6 +1,7 @@
 # Copyright (C) Dnspython Contributors, see LICENSE for text of ISC license
 
 import struct
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rdata
@@ -14,8 +15,16 @@ class L64(dns.rdata.Rdata):
     # see: rfc6742.txt
 
     __slots__ = ["preference", "locator64"]
+    preference: int
+    locator64: str
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, locator64):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        preference: int,
+        locator64: str | bytes,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         if isinstance(locator64, bytes):

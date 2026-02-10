@@ -16,6 +16,7 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
 import dns.exception
 import dns.immutable
@@ -23,7 +24,7 @@ import dns.rdata
 import dns.tokenizer
 
 
-def _validate_float_string(what):
+def _validate_float_string(what: bytes) -> None:
     if len(what) == 0:
         raise dns.exception.FormError
     if what[0] == b"-"[0] or what[0] == b"+"[0]:
@@ -49,8 +50,18 @@ class GPOS(dns.rdata.Rdata):
     # see: RFC 1712
 
     __slots__ = ["latitude", "longitude", "altitude"]
+    latitude: bytes
+    longitude: bytes
+    altitude: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, latitude, longitude, altitude):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        latitude: bytes | bytearray | str,
+        longitude: bytes | bytearray | str,
+        altitude: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         if isinstance(latitude, float) or isinstance(latitude, int):
             latitude = str(latitude)

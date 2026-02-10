@@ -17,6 +17,8 @@
 
 import socket
 import struct
+import ipaddress
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.ipv4
@@ -38,15 +40,25 @@ class WKS(dns.rdata.Rdata):
     # see: RFC 1035
 
     __slots__ = ["address", "protocol", "bitmap"]
+    address: str
+    protocol: int
+    bitmap: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address, protocol, bitmap):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        address: str | bytes | ipaddress.IPv4Address,
+        protocol: int,
+        bitmap: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.address = self._as_ipv4_address(address)
         self.protocol = self._as_uint8(protocol)
         self.bitmap = self._as_bytes(bitmap)
 
     def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
-        bits = []
+        bits:list[str] = []
         for i, byte in enumerate(self.bitmap):
             for j in range(0, 8):
                 if byte & (0x80 >> j):

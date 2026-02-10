@@ -17,48 +17,38 @@
 
 import base64
 import struct
+from typing import Any, IO, Self
 
 import dns.dnssectypes
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
 
-_ctype_by_value = {
-    1: "PKIX",
-    2: "SPKI",
-    3: "PGP",
-    4: "IPKIX",
-    5: "ISPKI",
-    6: "IPGP",
-    7: "ACPKIX",
-    8: "IACPKIX",
-    253: "URI",
-    254: "OID",
-}
+_ctypes: tuple[tuple[int, str], ...] = (
+    (  1, "PKIX"),
+    (  2, "SPKI"),
+    (  3, "PGP"),
+    (  4, "IPKIX"),
+    (  5, "ISPKI"),
+    (  6, "IPGP"),
+    (  7, "ACPKIX"),
+    (  8, "IACPKIX"),
+    (253, "URI"),
+    (254, "OID"),
+)
 
-_ctype_by_name = {
-    "PKIX": 1,
-    "SPKI": 2,
-    "PGP": 3,
-    "IPKIX": 4,
-    "ISPKI": 5,
-    "IPGP": 6,
-    "ACPKIX": 7,
-    "IACPKIX": 8,
-    "URI": 253,
-    "OID": 254,
-}
+_ctype_by_value:dict[int, str] = {i: s for i, s in _ctypes}
+_ctype_by_name: dict[str, int] = {s: i for i, s in _ctypes}
 
 
-def _ctype_from_text(what):
+def _ctype_from_text(what: str) -> int:
     v = _ctype_by_name.get(what)
     if v is not None:
         return v
     return int(what)
 
 
-def _ctype_to_text(what):
+def _ctype_to_text(what: int) -> str:
     v = _ctype_by_value.get(what)
     if v is not None:
         return v
@@ -73,8 +63,19 @@ class CERT(dns.rdata.Rdata):
 
     __slots__ = ["certificate_type", "key_tag", "algorithm", "certificate"]
 
+    certificate_type: int
+    key_tag: int
+    algorithm: int
+    certificate: bytes
+
     def __init__(
-        self, rdclass, rdtype, certificate_type, key_tag, algorithm, certificate
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        certificate_type: int,
+        key_tag: int,
+        algorithm: int,
+        certificate: bytes | bytearray | str,
     ):
         super().__init__(rdclass, rdtype)
         self.certificate_type = self._as_uint16(certificate_type)

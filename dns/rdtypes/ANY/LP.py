@@ -1,6 +1,7 @@
 # Copyright (C) Dnspython Contributors, see LICENSE for text of ISC license
 
 import struct
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rdata
@@ -13,8 +14,16 @@ class LP(dns.rdata.Rdata):
     # see: rfc6742.txt
 
     __slots__ = ["preference", "fqdn"]
+    preference: int
+    fqdn: dns.name.Name
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, fqdn):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        preference: int,
+        fqdn: str | dns.name.Name,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         self.fqdn = self._as_name(fqdn)

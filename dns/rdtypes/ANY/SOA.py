@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
@@ -30,10 +30,26 @@ class SOA(dns.rdata.Rdata):
     # see: RFC 1035
 
     __slots__ = ["mname", "rname", "serial", "refresh", "retry", "expire", "minimum"]
+    mname: dns.name.Name
+    rname: dns.name.Name
+    serial: int
+    refresh: int
+    retry: int
+    expire: int
+    minimum: int
 
     def __init__(
-        self, rdclass, rdtype, mname, rname, serial, refresh, retry, expire, minimum
-    ):
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        mname: dns.name.Name | str,
+        rname: dns.name.Name | str,
+        serial: int,
+        refresh: int | str,
+        retry: int | str,
+        expire: int | str,
+        minimum: int | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.mname = self._as_name(mname)
         self.rname = self._as_name(rname)

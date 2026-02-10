@@ -16,12 +16,11 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.name
 import dns.rdata
-import dns.rdtypes.util
 
 
 @dns.immutable.immutable
@@ -32,7 +31,18 @@ class PX(dns.rdata.Rdata):
 
     __slots__ = ["preference", "map822", "mapx400"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, preference, map822, mapx400):
+    preference: int
+    map822: dns.name.Name
+    mapx400: dns.name.Name
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        preference: int,
+        map822: str | dns.name.Name,
+        mapx400: str | dns.name.Name,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.preference = self._as_uint16(preference)
         self.map822 = self._as_name(map822)
@@ -67,7 +77,3 @@ class PX(dns.rdata.Rdata):
 
     def _processing_priority(self):
         return self.preference
-
-    @classmethod
-    def _processing_order(cls, iterable):
-        return dns.rdtypes.util.priority_processing_order(iterable)

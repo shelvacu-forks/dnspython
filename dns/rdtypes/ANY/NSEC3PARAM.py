@@ -17,8 +17,8 @@
 
 import binascii
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 
@@ -29,7 +29,20 @@ class NSEC3PARAM(dns.rdata.Rdata):
 
     __slots__ = ["algorithm", "flags", "iterations", "salt"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, algorithm, flags, iterations, salt):
+    algorithm: int
+    flags: int
+    iterations: int
+    salt: bytes
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        algorithm: int,
+        flags: int,
+        iterations: int,
+        salt: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.algorithm = self._as_uint8(algorithm)
         self.flags = self._as_uint8(flags)

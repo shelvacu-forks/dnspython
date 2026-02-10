@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
@@ -31,7 +31,16 @@ class HINFO(dns.rdata.Rdata):
 
     __slots__ = ["cpu", "os"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, cpu, os):
+    cpu: bytes
+    os: bytes
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        cpu: bytes | bytearray | str,
+        os: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.cpu = self._as_bytes(cpu, True, 255)
         self.os = self._as_bytes(os, True, 255)

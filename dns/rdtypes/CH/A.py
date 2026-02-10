@@ -16,10 +16,10 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rdata
-import dns.rdtypes.mxbase
 
 
 @dns.immutable.immutable
@@ -31,7 +31,16 @@ class A(dns.rdata.Rdata):
 
     __slots__ = ["domain", "address"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, domain, address):
+    domain: dns.name.Name
+    address: int
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        domain: str | dns.name.Name,
+        address: int,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.domain = self._as_name(domain)
         self.address = self._as_uint16(address)

@@ -16,8 +16,8 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.tokenizer
@@ -31,7 +31,9 @@ class X25(dns.rdata.Rdata):
 
     __slots__ = ["address"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address):
+    address: bytes
+
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address: bytes | bytearray | str):
         super().__init__(rdclass, rdtype)
         self.address = self._as_bytes(address, True, 255)
 

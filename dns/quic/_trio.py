@@ -5,8 +5,8 @@ import ssl
 import struct
 import time
 
-import aioquic.h3.events  # pyright: ignore
-import aioquic.quic.events  # pyright: ignore
+import aioquic.h3.events
+import aioquic.quic.events
 import trio
 
 import dns.exception

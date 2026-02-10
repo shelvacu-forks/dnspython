@@ -15,7 +15,8 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import dns.exception
+from typing import Any, IO, Self
+
 import dns.immutable
 import dns.name
 import dns.rdata
@@ -28,8 +29,16 @@ class RP(dns.rdata.Rdata):
     # see: RFC 1183
 
     __slots__ = ["mbox", "txt"]
+    mbox: dns.name.Name
+    txt: dns.name.Name
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, mbox, txt):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        mbox: dns.name.Name | str,
+        txt: dns.name.Name | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.mbox = self._as_name(mbox)
         self.txt = self._as_name(txt)

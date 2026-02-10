@@ -16,6 +16,7 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import binascii
+from typing import Any, IO, Self
 
 import dns.exception
 import dns.immutable
@@ -30,8 +31,9 @@ class NSAP(dns.rdata.Rdata):
     # see: RFC 1706
 
     __slots__ = ["address"]
+    address: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, address: bytes | bytearray | str):
         super().__init__(rdclass, rdtype)
         self.address = self._as_bytes(address)
 

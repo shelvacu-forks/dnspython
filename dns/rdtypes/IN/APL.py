@@ -18,8 +18,10 @@
 import binascii
 import codecs
 import struct
+import ipaddress
+from collections.abc import Sequence
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.ipv4
 import dns.ipv6
@@ -32,14 +34,26 @@ class APLItem:
     """An APL list item."""
 
     __slots__ = ["family", "negation", "address", "prefix"]
+    family: int
+    negation: bool
+    address: str | bytes
+    prefix: int
 
-    def __init__(self, family, negation, address, prefix):
+    def __init__(
+        self,
+        family: int,
+        negation: bool,
+        address: str | bytes | ipaddress.IPv4Address | ipaddress.IPv6Address,
+        prefix: int,
+    ) -> None:
         self.family = dns.rdata.Rdata._as_uint16(family)
         self.negation = dns.rdata.Rdata._as_bool(negation)
         if self.family == 1:
+            assert not isinstance(address, ipaddress.IPv6Address)
             self.address = dns.rdata.Rdata._as_ipv4_address(address)
             self.prefix = dns.rdata.Rdata._as_int(prefix, 0, 32)
         elif self.family == 2:
+            assert not isinstance(address, ipaddress.IPv4Address)
             self.address = dns.rdata.Rdata._as_ipv6_address(address)
             self.prefix = dns.rdata.Rdata._as_int(prefix, 0, 128)
         else:
@@ -52,7 +66,7 @@ class APLItem:
         else:
             return f"{self.family}:{self.address}/{self.prefix}"
 
-    def to_wire(self, file):
+    def to_wire(self, file: IO[bytes]) -> None:
         if self.family == 1:
             address = dns.ipv4.inet_aton(self.address)
         elif self.family == 2:
@@ -84,8 +98,9 @@ class APL(dns.rdata.Rdata):
     # see: RFC 3123
 
     __slots__ = ["items"]
+    items: tuple[APLItem, ...]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, items):
+    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, items: Sequence[APLItem]):
         super().__init__(rdclass, rdtype)
         for item in items:
             if not isinstance(item, APLItem):
@@ -99,7 +114,7 @@ class APL(dns.rdata.Rdata):
     def from_text(
         cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, tok: dns.tokenizer.Tokenizer, origin: dns.name.Name | None = None, relativize: bool = True, relativize_to: dns.name.Name | None = None
     ):
-        items = []
+        items:list[APLItem] = []
         for token in tok.get_remaining():
             item = token.unescape().value
             if item[0] == "!":
@@ -122,7 +137,7 @@ class APL(dns.rdata.Rdata):
 
     @classmethod
     def from_wire_parser(cls, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, parser: dns.wire.Parser, origin: dns.name.Name | None = None) -> Self:
-        items = []
+        items:list[APLItem] = []
         while parser.remaining() > 0:
             header = parser.get_struct("!HBB")
             afdlen = header[2]

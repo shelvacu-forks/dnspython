@@ -17,7 +17,7 @@
 
 import base64
 import struct
-from typing import Any, IO
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rcode
@@ -147,7 +147,7 @@ class TSIG(dns.rdata.Rdata):
         origin: dns.name.Name | None = None,
         canonicalize: bool = False,
     ) -> None:
-        self.algorithm.to_wire(file, None, origin, False)
+        self.algorithm.value.to_wire(file, None, origin, False)
         file.write(
             struct.pack(
                 "!HIHH",
@@ -168,7 +168,7 @@ class TSIG(dns.rdata.Rdata):
         rdtype: dns.rdatatype.RdataType,
         parser: dns.wire.Parser,
         origin: dns.name.Name | None = None,
-    ) -> "TSIG":
+    ) -> Self:
         algorithm = parser.get_name()
         time_signed = parser.get_uint48()
         fudge = parser.get_uint16()

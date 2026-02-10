@@ -18,11 +18,13 @@
 import base64
 import binascii
 import struct
+from collections.abc import Sequence
+from typing import Any, IO, Self
 
-import dns.exception
 import dns.immutable
 import dns.rdata
 import dns.rdatatype
+import dns.name
 
 
 @dns.immutable.immutable
@@ -33,7 +35,20 @@ class HIP(dns.rdata.Rdata):
 
     __slots__ = ["hit", "algorithm", "key", "servers"]
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, hit, algorithm, key, servers):
+    hit: bytes
+    algorithm: int
+    key: bytes
+    servers: tuple[dns.name.Name, ...]
+
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        hit: bytes | bytearray | str,
+        algorithm: int,
+        key: bytes | bytearray | str,
+        servers: Sequence[str | dns.name.Name],
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.hit = self._as_bytes(hit, True, 255)
         self.algorithm = self._as_uint8(algorithm)
@@ -44,7 +59,7 @@ class HIP(dns.rdata.Rdata):
         hit = binascii.hexlify(self.hit).decode()
         key = base64.b64encode(self.key).replace(b"\n", b"").decode()
         text = ""
-        servers = []
+        servers:list[dns.name.Name] = []
         for server in self.servers:
             servers.append(server.choose_relativity(origin, relativize))
         if len(servers) > 0:
@@ -58,7 +73,7 @@ class HIP(dns.rdata.Rdata):
         algorithm = tok.get_uint8()
         hit = binascii.unhexlify(tok.get_string().encode())
         key = base64.b64decode(tok.get_string().encode())
-        servers = []
+        servers:list[dns.name.Name] = []
         for token in tok.get_remaining():
             server = tok.as_name(token, origin, relativize, relativize_to)
             servers.append(server)
@@ -78,7 +93,7 @@ class HIP(dns.rdata.Rdata):
         lh, algorithm, lk = parser.get_struct("!BBH")
         hit = parser.get_bytes(lh)
         key = parser.get_bytes(lk)
-        servers = []
+        servers:list[dns.name.Name] = []
         while parser.remaining() > 0:
             server = parser.get_name(origin)
             servers.append(server)

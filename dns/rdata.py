@@ -26,8 +26,7 @@ import itertools
 import random
 from collections.abc import Iterable, Callable
 from importlib import import_module
-from typing import Any, Literal, cast, IO, Self, overload, cast
-from typing_extensions import Buffer
+from typing import Any, Literal, cast, IO, Self
 
 import dns.exception
 import dns.immutable
@@ -75,7 +74,7 @@ def _wordbreak(data:bytes, chunksize:int=_chunksize, separator:bytes=b" ") -> st
 # pylint: disable=unused-argument
 
 
-def _hexify(data:Buffer, chunksize:int=_chunksize, separator:bytes=b" "):
+def _hexify(data:bytes|bytearray, chunksize:int=_chunksize, separator:bytes=b" ") -> str:
     """Convert a binary string into its hex encoding, broken up into chunks
     of chunksize characters separated by a separator.
     """
@@ -83,7 +82,7 @@ def _hexify(data:Buffer, chunksize:int=_chunksize, separator:bytes=b" "):
     return _wordbreak(binascii.hexlify(data), chunksize, separator)
 
 
-def _base64ify(data:Buffer, chunksize:int=_chunksize, separator:bytes=b" "): # type: ignore[reportUnusedFunction]
+def _base64ify(data:bytes|bytearray, chunksize:int=_chunksize, separator:bytes=b" ") -> str: # type: ignore[reportUnusedFunction]
     """Convert a binary string into its base64 encoding, broken up into chunks
     of chunksize characters separated by a separator.
     """
@@ -115,7 +114,7 @@ def _escapify(qstring: str|bytes|bytearray) -> str: # type: ignore[reportUnusedF
     return text
 
 
-def _truncate_bitmap(what: bytes) -> bytes: # type: ignore[reportUnusedFunction]
+def _truncate_bitmap[T: (bytes, bytearray)](what: T) -> T: # type: ignore[reportUnusedFunction]
     """Determine the index of greatest byte that isn't all zeros, and
     return the bitmap that contains all the bytes less than that index.
     """
@@ -660,6 +659,7 @@ class GenericRdata(Rdata):
 
     def to_text(
         self,
+        *,
         origin: dns.name.Name | None = None,
         relativize: bool = True,
         chunksize:int=_chunksize,

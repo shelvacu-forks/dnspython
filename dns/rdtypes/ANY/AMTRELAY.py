@@ -16,6 +16,7 @@
 # OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 import struct
+from typing import Any, IO, Self
 
 import dns.exception
 import dns.immutable
@@ -40,14 +41,20 @@ class AMTRELAY(dns.rdata.Rdata):
     __slots__ = ["precedence", "discovery_optional", "relay_type", "relay"]
 
     def __init__(
-        self, rdclass, rdtype, precedence, discovery_optional, relay_type, relay
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        precedence: int,
+        discovery_optional: bool,
+        relay_type: int,
+        relay: str | dns.name.Name | None,
     ):
         super().__init__(rdclass, rdtype)
-        relay = Relay(relay_type, relay)
+        relay_obj = Relay(relay_type, relay)
         self.precedence = self._as_uint8(precedence)
         self.discovery_optional = self._as_bool(discovery_optional)
-        self.relay_type = relay.type
-        self.relay = relay.relay
+        self.relay_type = relay_obj.type
+        self.relay = relay_obj.relay
 
     def to_text(self, origin: dns.name.Name | None = None, relativize: bool = True, **kw: Any) -> str:
         relay = Relay(self.relay_type, self.relay).to_text(origin, relativize)

@@ -17,6 +17,7 @@
 
 import binascii
 import struct
+from typing import Any, IO, Self
 
 import dns.immutable
 import dns.rdata
@@ -30,8 +31,18 @@ class SSHFP(dns.rdata.Rdata):
     # See RFC 4255
 
     __slots__ = ["algorithm", "fp_type", "fingerprint"]
+    algorithm: int
+    fp_type: int
+    fingerprint: bytes
 
-    def __init__(self, rdclass: dns.rdataclass.RdataClass, rdtype: dns.rdatatype.RdataType, algorithm, fp_type, fingerprint):
+    def __init__(
+        self,
+        rdclass: dns.rdataclass.RdataClass,
+        rdtype: dns.rdatatype.RdataType,
+        algorithm: int,
+        fp_type: int,
+        fingerprint: bytes | bytearray | str,
+    ) -> None:
         super().__init__(rdclass, rdtype)
         self.algorithm = self._as_uint8(algorithm)
         self.fp_type = self._as_uint8(fp_type)
